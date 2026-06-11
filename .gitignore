@@ -56,7 +56,7 @@ reports/outputs/*
 *.pt
 *.pth
 *.onnx
-models/
+/models/
 
 # --- Logs ---
 *.log
