@@ -1,0 +1,8 @@
+staffing:
+  visits_per_clinician_day: 18
+  visits_per_nurse_day: 24
+  visits_per_frontdesk_day: 35
+  minimum_clinicians: 1
+  minimum_nurses: 1
+  minimum_frontdesk: 1
+  buffer_ratio: 0.12

@@ -1,0 +1,77 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Packaging / build ---
+build/
+dist/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+
+# --- Test / lint / type-check caches ---
+.pytest_cache/
+.benchmarks/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# --- Environment / secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Data (keep directory structure via .gitkeep) ---
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+auxiliar/
+
+# --- Reports / generated outputs ---
+reports/figures/*
+reports/outputs/*
+!reports/figures/.gitkeep
+!reports/outputs/.gitkeep
+
+# --- Model artifacts ---
+*.pkl
+*.joblib
+*.pt
+*.pth
+*.onnx
+models/
+
+# --- Logs ---
+*.log
+logs/
+
+# --- IDE / editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Docker ---
+*.pid
