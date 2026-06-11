@@ -30,12 +30,17 @@ class GlobalMLForecaster:
         self.model = Pipeline(
             steps=[
                 ("scaler", StandardScaler(with_mean=False)),
-                ("regressor", HistGradientBoostingRegressor(max_iter=250, learning_rate=0.06, random_state=42)),
+                (
+                    "regressor",
+                    HistGradientBoostingRegressor(
+                        max_iter=250, learning_rate=0.06, random_state=42
+                    ),
+                ),
             ]
         )
         self.feature_columns_: list[str] | None = None
 
-    def fit(self, data: pd.DataFrame) -> "GlobalMLForecaster":
+    def fit(self, data: pd.DataFrame) -> GlobalMLForecaster:
         """Fit the global forecasting model."""
         supervised = make_supervised_frame(data, group_col=self.id_col, target_col=self.target_col)
         drop_cols = {

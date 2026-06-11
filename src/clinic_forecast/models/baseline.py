@@ -28,7 +28,8 @@ def seasonal_naive_forecast(
     forecasts: list[pd.DataFrame] = []
 
     for clinic_id, test_group in future_sorted.groupby(id_col, observed=True):
-        history = train_sorted.loc[train_sorted[id_col] == clinic_id, target_col].to_numpy(dtype=float)
+        clinic_mask = train_sorted[id_col] == clinic_id
+        history = train_sorted.loc[clinic_mask, target_col].to_numpy(dtype=float)
         if len(history) == 0:
             raise ValueError(f"No training history found for {clinic_id}.")
         if len(history) < season_length:

@@ -60,9 +60,15 @@ def compute_metrics(
 
     mae = float(np.mean(abs_error))
     rmse = float(np.sqrt(np.mean(error**2)))
-    mape = float(np.mean(abs_error[non_zero] / np.abs(actual[non_zero])) * 100) if non_zero.any() else np.nan
+    if non_zero.any():
+        mape = float(np.mean(abs_error[non_zero] / np.abs(actual[non_zero])) * 100)
+    else:
+        mape = float("nan")
     denominator = np.abs(actual) + np.abs(pred)
-    smape = float(np.mean(np.divide(2 * abs_error, denominator, out=np.zeros_like(abs_error), where=denominator != 0)) * 100)
+    smape_terms = np.divide(
+        2 * abs_error, denominator, out=np.zeros_like(abs_error), where=denominator != 0
+    )
+    smape = float(np.mean(smape_terms) * 100)
     wape = float(abs_error.sum() / np.maximum(np.abs(actual).sum(), 1e-12) * 100)
     bias = float(error.sum() / np.maximum(np.abs(actual).sum(), 1e-12) * 100)
 

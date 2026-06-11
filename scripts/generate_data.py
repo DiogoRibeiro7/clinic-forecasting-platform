@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from clinic_forecast.contracts import (
+    validate_clinic_metadata,
+    validate_clinic_usage,
+    validate_marketing,
+)
 from clinic_forecast.data import SyntheticDataConfig, generate_synthetic_healthcare_data
 
 
@@ -14,6 +19,9 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     usage, metadata, marketing = generate_synthetic_healthcare_data(SyntheticDataConfig())
+    validate_clinic_usage(usage)
+    validate_clinic_metadata(metadata)
+    validate_marketing(marketing)
     usage.to_csv(output_dir / "clinic_usage.csv", index=False)
     metadata.to_csv(output_dir / "clinic_metadata.csv", index=False)
     marketing.to_csv(output_dir / "marketing.csv", index=False)

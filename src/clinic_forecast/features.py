@@ -66,12 +66,9 @@ def add_lag_features(
     for window in rolling_windows:
         if window <= 1:
             raise ValueError("Rolling windows must be greater than 1.")
-        frame[f"rolling_mean_{window}"] = grouped.shift(1).rolling(window=window).mean().reset_index(
-            level=0, drop=True
-        )
-        frame[f"rolling_std_{window}"] = grouped.shift(1).rolling(window=window).std().reset_index(
-            level=0, drop=True
-        )
+        shifted = grouped.shift(1).rolling(window=window)
+        frame[f"rolling_mean_{window}"] = shifted.mean().reset_index(level=0, drop=True)
+        frame[f"rolling_std_{window}"] = shifted.std().reset_index(level=0, drop=True)
 
     return frame
 

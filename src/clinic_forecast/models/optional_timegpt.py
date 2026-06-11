@@ -34,5 +34,7 @@ def timegpt_forecast(
     frame = data[[id_col, date_col, target_col]].rename(
         columns={id_col: "unique_id", date_col: "ds", target_col: "y"}
     )
-    forecast = client.forecast(df=frame, h=horizon, time_col="ds", target_col="y", id_col="unique_id")
+    forecast = client.forecast(
+        df=frame, h=horizon, time_col="ds", target_col="y", id_col="unique_id"
+    )
     return forecast.rename(columns={"unique_id": id_col, "ds": date_col})

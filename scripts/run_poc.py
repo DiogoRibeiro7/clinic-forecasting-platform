@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from clinic_forecast.contracts import validate_clinic_usage
 from clinic_forecast.data import generate_synthetic_healthcare_data
 from clinic_forecast.metrics import compute_metrics
 from clinic_forecast.models.baseline import seasonal_naive_forecast
@@ -19,6 +20,7 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     usage, _, _ = generate_synthetic_healthcare_data()
+    validate_clinic_usage(usage)
     usage["date"] = pd.to_datetime(usage["date"])
     cutoff = usage["date"].max() - pd.Timedelta(days=28)
     train = usage[usage["date"] <= cutoff]

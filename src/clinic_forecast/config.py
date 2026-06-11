@@ -16,7 +16,7 @@ class ProjectPaths:
     reports: Path
 
     @classmethod
-    def from_root(cls, root: str | Path) -> "ProjectPaths":
+    def from_root(cls, root: str | Path) -> ProjectPaths:
         """Build a path configuration from a repository root."""
         root_path = Path(root).resolve()
         return cls(

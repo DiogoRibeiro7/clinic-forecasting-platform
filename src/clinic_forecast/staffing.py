@@ -50,14 +50,19 @@ def recommend_staffing(
     frame = forecast.copy()
     buffered_demand = frame[forecast_col].clip(lower=0) * (1 + staffing_rules.buffer_ratio)
 
-    frame["recommended_clinicians"] = buffered_demand.apply(
-        lambda value: max(staffing_rules.minimum_clinicians, ceil(value / staffing_rules.visits_per_clinician_day))
+    def _required_staff(visits_per_staff_day: int, minimum: int) -> pd.Series:
+        return buffered_demand.apply(
+            lambda value: max(minimum, ceil(value / visits_per_staff_day))
+        )
+
+    frame["recommended_clinicians"] = _required_staff(
+        staffing_rules.visits_per_clinician_day, staffing_rules.minimum_clinicians
     )
-    frame["recommended_nurses"] = buffered_demand.apply(
-        lambda value: max(staffing_rules.minimum_nurses, ceil(value / staffing_rules.visits_per_nurse_day))
+    frame["recommended_nurses"] = _required_staff(
+        staffing_rules.visits_per_nurse_day, staffing_rules.minimum_nurses
     )
-    frame["recommended_frontdesk"] = buffered_demand.apply(
-        lambda value: max(staffing_rules.minimum_frontdesk, ceil(value / staffing_rules.visits_per_frontdesk_day))
+    frame["recommended_frontdesk"] = _required_staff(
+        staffing_rules.visits_per_frontdesk_day, staffing_rules.minimum_frontdesk
     )
     return frame
 
