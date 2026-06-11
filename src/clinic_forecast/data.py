@@ -2,6 +2,24 @@
 
 The generator creates aggregate clinic-level operational data. It is intentionally
 free of patient-level fields and protected health information.
+
+Simulation design
+-----------------
+Demand is generated in the order a real network experiences it:
+
+1. Expected scheduled appointments are driven by clinic size, specialty,
+   weekday profile, winter/summer seasonality, public holidays, a slow growth
+   trend and marketing pressure.
+2. Scheduled appointments are drawn from a Poisson distribution around that
+   expectation.
+3. No-shows and same-day cancellations remove a stochastic share of the
+   schedule.
+4. Completed visits are capped by the clinic's daily capacity.
+
+Clinics that are not open on weekends (every specialty except urgent care)
+have zero scheduled activity on Sundays and reduced Saturdays. Marketing spend
+is split across search, social, email and local channels, with campaigns
+concentrated in January and the autumn enrolment season.
 """
 
 from __future__ import annotations
@@ -22,15 +40,67 @@ SPECIALTIES: Final[tuple[str, ...]] = (
 
 REGIONS: Final[tuple[str, ...]] = ("north", "south", "east", "west")
 
+MARKETING_CHANNELS: Final[tuple[str, ...]] = ("search", "social", "email", "local")
+
+#: Fixed-date public holidays as (month, day). Kept geography-neutral on purpose.
+PUBLIC_HOLIDAYS: Final[tuple[tuple[int, int], ...]] = (
+    (1, 1),
+    (5, 1),
+    (12, 24),
+    (12, 25),
+    (12, 26),
+    (12, 31),
+)
+
+_CHANNEL_WEIGHTS: Final[dict[str, float]] = {
+    "search": 0.40,
+    "social": 0.25,
+    "email": 0.15,
+    "local": 0.20,
+}
+
 
 @dataclass(frozen=True)
 class SyntheticDataConfig:
-    """Configuration for synthetic healthcare-network data."""
+    """Configuration for synthetic healthcare-network data.
+
+    Parameters
+    ----------
+    start_date, end_date:
+        Inclusive simulation date range.
+    n_clinics:
+        Number of clinics in the network (minimum 2).
+    random_seed:
+        Seed for all stochastic components; identical seeds produce
+        identical data.
+    seasonality_strength:
+        Scales weekday, winter/summer and yearly seasonal effects.
+        0 removes seasonality, 1 is the default intensity.
+    marketing_strength:
+        Scales the demand response to marketing spend. 0 makes demand
+        independent of marketing.
+    noise_level:
+        Scales observation noise and the variability of no-show and
+        cancellation rates. 0 keeps only structural variation.
+    """
 
     start_date: str = "2022-01-01"
     end_date: str = "2025-12-31"
     n_clinics: int = 12
     random_seed: int = 42
+    seasonality_strength: float = 1.0
+    marketing_strength: float = 1.0
+    noise_level: float = 1.0
+
+
+@dataclass(frozen=True)
+class SyntheticHealthcareData:
+    """Container for the four generated network tables."""
+
+    usage: pd.DataFrame
+    metadata: pd.DataFrame
+    marketing: pd.DataFrame
+    staffing: pd.DataFrame
 
 
 def _validate_config(config: SyntheticDataConfig) -> None:
@@ -39,6 +109,14 @@ def _validate_config(config: SyntheticDataConfig) -> None:
         raise ValueError("n_clinics must be at least 2.")
     if pd.Timestamp(config.start_date) >= pd.Timestamp(config.end_date):
         raise ValueError("start_date must be earlier than end_date.")
+    for name in ("seasonality_strength", "marketing_strength", "noise_level"):
+        if getattr(config, name) < 0:
+            raise ValueError(f"{name} cannot be negative.")
+
+
+def _scaled(base: float, strength: float) -> float:
+    """Scale a multiplicative effect of the form (1 + delta) by a strength factor."""
+    return 1.0 + strength * (base - 1.0)
 
 
 def make_clinic_metadata(config: SyntheticDataConfig) -> pd.DataFrame:
@@ -52,7 +130,8 @@ def make_clinic_metadata(config: SyntheticDataConfig) -> pd.DataFrame:
     Returns
     -------
     pandas.DataFrame
-        One row per clinic with capacity and specialty information.
+        One row per clinic with region, specialty, capacity, baseline staffing
+        and weekend opening information.
     """
     _validate_config(config)
     rng = np.random.default_rng(config.random_seed)
@@ -61,25 +140,26 @@ def make_clinic_metadata(config: SyntheticDataConfig) -> pd.DataFrame:
     for idx in range(config.n_clinics):
         clinic_size = rng.choice(["small", "medium", "large"], p=[0.35, 0.45, 0.20])
         base_capacity = {"small": 80, "medium": 140, "large": 220}[clinic_size]
+        specialty = SPECIALTIES[idx % len(SPECIALTIES)]
         rows.append(
             {
                 "clinic_id": f"CLINIC_{idx + 1:03d}",
                 "region": REGIONS[idx % len(REGIONS)],
                 "clinic_size": clinic_size,
-                "specialty": SPECIALTIES[idx % len(SPECIALTIES)],
+                "specialty": specialty,
                 "daily_capacity": int(base_capacity + rng.normal(0, 8)),
                 "base_clinicians": int({"small": 4, "medium": 7, "large": 11}[clinic_size]),
                 "base_nurses": int({"small": 5, "medium": 9, "large": 14}[clinic_size]),
                 "base_frontdesk": int({"small": 2, "medium": 4, "large": 6}[clinic_size]),
+                "weekend_open": int(specialty == "urgent_care"),
             }
         )
 
-    metadata = pd.DataFrame(rows)
-    return metadata
+    return pd.DataFrame(rows)
 
 
 def _calendar_frame(config: SyntheticDataConfig) -> pd.DataFrame:
-    """Create a daily calendar frame with seasonality drivers."""
+    """Create a daily calendar frame with seasonality and holiday drivers."""
     dates = pd.date_range(config.start_date, config.end_date, freq="D")
     calendar = pd.DataFrame({"date": dates})
     calendar["day_of_week"] = calendar["date"].dt.dayofweek
@@ -89,12 +169,14 @@ def _calendar_frame(config: SyntheticDataConfig) -> pd.DataFrame:
     calendar["is_monday"] = (calendar["day_of_week"] == 0).astype(int)
     calendar["is_winter"] = calendar["month"].isin([12, 1, 2]).astype(int)
     calendar["is_summer"] = calendar["month"].isin([6, 7, 8]).astype(int)
+    holiday_key = list(zip(calendar["month"], calendar["date"].dt.day, strict=True))
+    calendar["is_holiday"] = [int(key in PUBLIC_HOLIDAYS) for key in holiday_key]
     calendar["yearly_season"] = np.sin(2 * np.pi * calendar["date"].dt.dayofyear / 365.25)
     return calendar
 
 
 def _marketing_frame(config: SyntheticDataConfig, metadata: pd.DataFrame) -> pd.DataFrame:
-    """Create clinic-level marketing features."""
+    """Create clinic-level daily marketing activity split by channel."""
     rng = np.random.default_rng(config.random_seed + 7)
     calendar = _calendar_frame(config)
     frames: list[pd.DataFrame] = []
@@ -104,21 +186,61 @@ def _marketing_frame(config: SyntheticDataConfig, metadata: pd.DataFrame) -> pd.
         campaign_probability = np.where(local["month"].isin([1, 9, 10]), 0.14, 0.06)
         local["campaign_active"] = rng.binomial(1, campaign_probability)
         base_spend = rng.uniform(200, 900)
-        local["marketing_spend"] = (
-            base_spend
-            + local["campaign_active"] * rng.uniform(900, 2500)
-            + rng.normal(0, 120, size=len(local))
-        ).clip(lower=0)
+        campaign_spend = rng.uniform(900, 2500)
+
+        for channel in MARKETING_CHANNELS:
+            weight = _CHANNEL_WEIGHTS[channel]
+            channel_noise = rng.normal(0, 30 * config.noise_level, size=len(local))
+            local[f"spend_{channel}"] = (
+                base_spend * weight
+                + local["campaign_active"] * campaign_spend * weight
+                + channel_noise
+            ).clip(lower=0)
+
+        spend_columns = [f"spend_{channel}" for channel in MARKETING_CHANNELS]
+        local["marketing_spend"] = local[spend_columns].sum(axis=1)
         local["clinic_id"] = clinic
         frames.append(local.drop(columns="month"))
 
     return pd.concat(frames, ignore_index=True)
 
 
-def generate_synthetic_healthcare_data(
+def _staffing_frame(
+    config: SyntheticDataConfig,
+    metadata: pd.DataFrame,
+    open_by_clinic: dict[str, np.ndarray],
+    calendar: pd.DataFrame,
+) -> pd.DataFrame:
+    """Create historical daily staffing levels by role for each clinic."""
+    rng = np.random.default_rng(config.random_seed + 13)
+    frames: list[pd.DataFrame] = []
+
+    for _, clinic in metadata.iterrows():
+        clinic_id = str(clinic["clinic_id"])
+        is_open = open_by_clinic[clinic_id]
+        weekend = calendar["is_weekend"].to_numpy()
+        weekend_factor = np.where(weekend == 1, 0.6, 1.0)
+
+        local = calendar[["date"]].copy()
+        local["clinic_id"] = clinic_id
+        for role, base_col in (
+            ("clinicians", "base_clinicians"),
+            ("nurses", "base_nurses"),
+            ("frontdesk", "base_frontdesk"),
+        ):
+            base = float(clinic[base_col])
+            jitter = rng.normal(0, 0.4 * config.noise_level, size=len(local))
+            staffed = np.rint(base * weekend_factor + jitter).clip(min=1)
+            local[role] = np.where(is_open, staffed, 0).astype(np.int64)
+        frames.append(local)
+
+    return pd.concat(frames, ignore_index=True)
+
+
+def generate_network_data(
     config: SyntheticDataConfig | None = None,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Generate synthetic clinic usage, clinic metadata and marketing data.
+) -> SyntheticHealthcareData:
+    """Generate the four synthetic network tables.
 
     Parameters
     ----------
@@ -128,8 +250,9 @@ def generate_synthetic_healthcare_data(
 
     Returns
     -------
-    tuple[pandas.DataFrame, pandas.DataFrame, pandas.DataFrame]
-        Usage data, clinic metadata and marketing data.
+    SyntheticHealthcareData
+        Daily usage, clinic metadata, daily marketing by channel and daily
+        staffing levels by role.
     """
     cfg = config or SyntheticDataConfig()
     _validate_config(cfg)
@@ -139,13 +262,16 @@ def generate_synthetic_healthcare_data(
     calendar = _calendar_frame(cfg)
     marketing = _marketing_frame(cfg, metadata)
 
+    open_by_clinic: dict[str, np.ndarray] = {}
     rows: list[pd.DataFrame] = []
     for _, clinic in metadata.iterrows():
+        clinic_id = str(clinic["clinic_id"])
         clinic_frame = calendar.copy()
-        clinic_frame["clinic_id"] = clinic["clinic_id"]
+        clinic_frame["clinic_id"] = clinic_id
         clinic_frame = clinic_frame.merge(marketing, on=["clinic_id", "date"], how="left")
 
         capacity = float(clinic["daily_capacity"])
+        weekend_open = bool(clinic["weekend_open"])
         size_multiplier = {"small": 0.55, "medium": 0.78, "large": 1.02}[str(clinic["clinic_size"])]
         specialty_multiplier = {
             "primary_care": 1.00,
@@ -155,43 +281,91 @@ def generate_synthetic_healthcare_data(
             "pediatrics": 0.88,
         }[str(clinic["specialty"])]
 
+        weekday_profile = {0: 1.18, 1: 1.06, 2: 1.00, 3: 1.02, 4: 0.96}
+        if weekend_open:
+            weekday_profile.update({5: 0.85, 6: 0.70})
+        else:
+            weekday_profile.update({5: 0.48, 6: 0.0})
         weekday_effect = clinic_frame["day_of_week"].map(
-            {0: 1.18, 1: 1.06, 2: 1.00, 3: 1.02, 4: 0.96, 5: 0.48, 6: 0.26}
+            {
+                day: (_scaled(value, cfg.seasonality_strength) if value > 0 else 0.0)
+                for day, value in weekday_profile.items()
+            }
         )
-        winter_effect = 1.0 + 0.16 * clinic_frame["is_winter"]
-        summer_effect = 1.0 - 0.08 * clinic_frame["is_summer"]
-        campaign_effect = 1.0 + 0.00008 * clinic_frame["marketing_spend"]
-        trend = 1.0 + np.linspace(0.0, rng.uniform(0.04, 0.18), len(clinic_frame))
-        local_noise = rng.normal(0, 6.0, size=len(clinic_frame))
 
-        expected_visits = (
+        is_open = (weekday_effect.to_numpy() > 0) & (
+            (clinic_frame["is_holiday"].to_numpy() == 0) | weekend_open
+        )
+        open_by_clinic[clinic_id] = is_open
+
+        winter_effect = _scaled(1.16, cfg.seasonality_strength) ** clinic_frame["is_winter"]
+        summer_effect = _scaled(0.92, cfg.seasonality_strength) ** clinic_frame["is_summer"]
+        holiday_effect = np.where(clinic_frame["is_holiday"] == 1, 0.35, 1.0)
+        campaign_effect = 1.0 + cfg.marketing_strength * 0.00008 * clinic_frame["marketing_spend"]
+        trend = 1.0 + np.linspace(0.0, rng.uniform(0.04, 0.18), len(clinic_frame))
+        local_noise = rng.normal(0, 6.0 * cfg.noise_level, size=len(clinic_frame))
+
+        expected_scheduled = (
             capacity
             * size_multiplier
             * specialty_multiplier
             * weekday_effect
             * winter_effect
             * summer_effect
+            * holiday_effect
             * campaign_effect
             * trend
-            + 10 * clinic_frame["yearly_season"]
+            + 10 * cfg.seasonality_strength * clinic_frame["yearly_season"]
             + local_noise
         )
-        visits = rng.poisson(np.clip(expected_visits, 1, None)).astype(int)
+        expected_scheduled = np.where(is_open, np.clip(expected_scheduled, 1, None), 0.0)
+        scheduled = rng.poisson(expected_scheduled).astype(np.int64)
+
         no_show_rate = np.clip(
             0.08
             + 0.02 * clinic_frame["is_monday"]
-            + rng.normal(0, 0.012, size=len(clinic_frame)),
+            + rng.normal(0, 0.012 * cfg.noise_level, size=len(clinic_frame)),
             0.02,
             0.22,
         )
+        cancellation_rate = np.clip(
+            0.035 + rng.normal(0, 0.008 * cfg.noise_level, size=len(clinic_frame)),
+            0.005,
+            0.12,
+        )
 
-        clinic_frame["scheduled_appointments"] = np.ceil(visits / (1 - no_show_rate)).astype(int)
+        no_shows = rng.binomial(scheduled, no_show_rate).astype(np.int64)
+        cancellations = rng.binomial(scheduled - no_shows, cancellation_rate).astype(np.int64)
+        visits = np.minimum(scheduled - no_shows - cancellations, np.int64(capacity))
+
+        clinic_frame["scheduled_appointments"] = scheduled
+        clinic_frame["no_show_count"] = no_shows
+        clinic_frame["same_day_cancellations"] = cancellations
         clinic_frame["no_show_rate"] = no_show_rate
         clinic_frame["visits"] = visits
+        clinic_frame["is_open"] = is_open.astype(int)
         clinic_frame["capacity_utilization"] = visits / capacity
         rows.append(clinic_frame)
 
     usage = pd.concat(rows, ignore_index=True)
     usage = usage.merge(metadata, on="clinic_id", how="left")
     usage = usage.sort_values(["clinic_id", "date"]).reset_index(drop=True)
-    return usage, metadata, marketing
+
+    staffing = _staffing_frame(cfg, metadata, open_by_clinic, calendar)
+    staffing = staffing.sort_values(["clinic_id", "date"]).reset_index(drop=True)
+
+    return SyntheticHealthcareData(
+        usage=usage, metadata=metadata, marketing=marketing, staffing=staffing
+    )
+
+
+def generate_synthetic_healthcare_data(
+    config: SyntheticDataConfig | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Generate synthetic clinic usage, clinic metadata and marketing data.
+
+    Compatibility wrapper around :func:`generate_network_data` that preserves
+    the original three-frame return shape used by the earlier notebooks.
+    """
+    network = generate_network_data(config)
+    return network.usage, network.metadata, network.marketing

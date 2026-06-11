@@ -203,6 +203,28 @@ def validate_marketing(frame: pd.DataFrame) -> pd.DataFrame:
     flags = set(pd.unique(frame["campaign_active"]))
     if not flags.issubset({0, 1}):
         _fail(contract, f"Column 'campaign_active' must be binary; found values {sorted(flags)}.")
+
+    channel_columns = [col for col in frame.columns if col.startswith("spend_")]
+    if channel_columns:
+        _require_non_negative(frame, channel_columns, contract)
+    return frame
+
+
+def validate_staffing_daily(frame: pd.DataFrame) -> pd.DataFrame:
+    """Validate daily staffing levels by role.
+
+    Raises
+    ------
+    DataContractError
+        If the frame violates the staffing-daily contract.
+    """
+    contract = "staffing_daily"
+    _require_dataframe(frame, contract)
+    _require_columns(frame, ["clinic_id", "date", "clinicians", "nurses", "frontdesk"], contract)
+    _require_no_missing(frame, ["clinic_id", "date"], contract)
+    _require_non_negative(frame, ["clinicians", "nurses", "frontdesk"], contract)
+    _require_unique_key(frame, ["clinic_id", "date"], contract)
+    _require_sorted_dates_within_group(frame, "clinic_id", "date", contract)
     return frame
 
 
