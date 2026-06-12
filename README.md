@@ -13,14 +13,27 @@ The project simulates a realistic operational setting where multiple clinics hav
 
 ## What this project demonstrates
 
-- Time-series forecasting for healthcare operations.
-- Multi-clinic demand modelling with exogenous variables.
-- Forecast validation with rolling-origin backtesting.
-- Statistical forecasting with naive, seasonal naive, moving average and SARIMAX models.
-- Machine-learning forecasting using lag features and a global multi-clinic model.
-- Optional Prophet, XGBoost, LSTM and TimeGPT integrations.
-- Decision-layer logic for converting forecasted demand into staffing recommendations.
-- A clean Python package structure with tests, notebooks, scripts and API stubs.
+Forecasting as decision support, not just model fitting — the full path from
+raw data to a costed, served staffing decision:
+
+- **Data engineering:** typed data contracts, a configurable synthetic
+  generator with realistic difficulty (overdispersion, demand episodes, trend
+  changepoints, marketing adstock, capacity censoring).
+- **Time-series modelling:** baselines, per-clinic SARIMAX with exogenous
+  inputs and automatic order selection, and a leakage-controlled global ML
+  model with recursive multi-step forecasting.
+- **Correct evaluation:** rolling-origin backtesting and one shared set of
+  metrics across every notebook.
+- **Uncertainty:** split conformal prediction intervals with per-clinic
+  calibration.
+- **Decision layer:** forecasts → staffing → money, with cost scenarios and
+  conservative interval-based planning.
+- **Hierarchical coherence:** clinic / region / network reconciliation.
+- **Operational extensions:** no-show forecasting, marketing what-if
+  scenarios, drift monitoring with retraining triggers.
+- **MLOps without heavy infra:** batch pipeline, local model registry, a
+  read-only FastAPI serving layer, CI, Docker and notebook execution checks.
+- **Responsible ML:** model card and operational risk register.
 
 ## Business problem
 
@@ -28,33 +41,49 @@ Healthcare networks need to decide how many clinicians, nurses and front-desk st
 
 This PoC predicts daily clinic usage for each clinic and then converts demand forecasts into staffing requirements under configurable productivity rules.
 
-## Repository layout
+## Architecture
 
 ```text
-clinic-forecasting-platform/
-├── notebooks/
-│   ├── 00_business_problem_and_poc_design.ipynb
-│   ├── 01_synthetic_healthcare_data_generation.ipynb
-│   ├── 02_eda_and_forecasting_validation.ipynb
-│   ├── 03_statistical_models_sarimax_prophet.ipynb
-│   ├── 04_global_ml_forecaster_xgboost_style.ipynb
-│   ├── 05_lstm_timegpt_optional_foundation_models.ipynb
-│   └── 06_staffing_optimization_and_decision_layer.ipynb
-├── src/clinic_forecast/
-│   ├── data.py
-│   ├── features.py
-│   ├── metrics.py
-│   ├── validation.py
-│   ├── staffing.py
-│   ├── visualization.py
-│   ├── models/
-│   ├── pipelines/
-│   └── api/
-├── scripts/
-├── tests/
-├── docs/
-├── reports/
-└── pyproject.toml
+                 scripts/generate_data.py
+synthetic  ─────────────────────────────────►  data/processed/*.csv
+generator        (contracts validate)            (4 contract tables)
+                                                        │
+                                                        ▼
+            ┌─────────────── batch pipeline (scripts/run_batch_forecast.py) ──────────────┐
+            │                                                                              │
+            │  validate → calibrate conformal intervals → fit global ML →                 │
+            │  recursive forecast → staffing plans → register model                       │
+            │                                                                              │
+            └──────────────────────────────────┬───────────────────────────────────────-─┘
+                                                ▼
+                       outputs/forecasts/latest.csv   outputs/staffing/latest.csv
+                       outputs/model_registry/*.json
+                                                │
+                                                ▼
+                            FastAPI serving layer (read-only)
+                   /health  /clinics  /forecasts  /staffing  /scenario/marketing
+```
+
+The package mirrors this flow:
+
+```text
+src/clinic_forecast/
+├── contracts.py      data contracts / schema validation
+├── data.py           synthetic network generator
+├── features.py       leakage-safe feature engineering
+├── metrics.py        forecast metrics (one definition, shared)
+├── evaluation.py     grouped metrics, ranking, comparison tables
+├── validation.py     RollingOriginSplitter
+├── intervals.py      split conformal prediction intervals
+├── reconciliation.py hierarchical aggregation + reconciliation
+├── staffing.py       rules, costs, scenario comparison
+├── scenarios.py      marketing what-if planning
+├── noshow.py         no-show / cancellation forecasting
+├── monitoring.py     drift + quality alerts
+├── registry.py       local model registry
+├── models/           baseline, sarimax, global_ml, lstm, timegpt, prophet
+├── pipelines/        batch_inference + helpers
+└── api/              FastAPI serving layer
 ```
 
 ## Quick start
@@ -106,15 +135,23 @@ The models use:
 - Rolling-window statistics.
 - Capacity and specialty mix.
 
-## Expected PoC workflow
+## Notebooks
 
-1. Generate realistic synthetic clinic and marketing data.
-2. Explore demand, seasonality, capacity pressure and marketing effects.
-3. Build baseline models.
-4. Compare SARIMAX, Prophet and global ML models.
-5. Optionally test LSTM or TimeGPT.
-6. Convert forecasts into staffing requirements.
-7. Report model accuracy and operational impact.
+Read in order; start with 10 for the summary. All ship executed with outputs.
+
+| # | Notebook | Focus |
+| --- | --- | --- |
+| 00 | Business problem and PoC design | Decisions, data entities, evaluation design, scope |
+| 01 | Synthetic data generation | Simulation design and why each feature exists |
+| 02 | EDA and forecastability | Demand structure → modelling strategy |
+| 03 | Statistical models | Baselines, SARIMAX (+ auto order), Prophet |
+| 04 | Global ML forecaster | Feature design, fold comparison, importance, intervals, recursive forecasting |
+| 05 | Optional benchmarks | LSTM and TimeGPT, gracefully optional |
+| 06 | Staffing optimisation | Gaps, conformal upper-bound planning, costs, no-shows |
+| 07 | Hierarchical reconciliation | Clinic / region / network coherence |
+| 08 | Marketing scenario planning | What-if demand and staffing impact |
+| 09 | Monitoring and retraining | Drift alerts and retraining policy |
+| 10 | Executive summary | End-to-end story, every number live |
 
 ## Forecasting metrics
 
@@ -178,6 +215,13 @@ This project is designed to show that forecasting is not just model fitting. It 
 ```text
 raw clinic data → features → forecasts → staffing recommendations → operational report
 ```
+
+**Skills demonstrated:** time-series forecasting and validation, panel/global
+ML with leakage control, uncertainty quantification (conformal), hierarchical
+reconciliation, operational decision modelling and costing, data contracts,
+batch pipelines, model registry, drift monitoring, API serving, CI/Docker,
+and responsible-ML documentation — all with typed code, tests and executed
+notebooks.
 
 ## Quality gates
 
