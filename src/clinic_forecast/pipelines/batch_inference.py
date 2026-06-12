@@ -26,7 +26,9 @@ import pandas as pd
 from clinic_forecast.contracts import validate_clinic_metadata, validate_clinic_usage
 from clinic_forecast.data import PUBLIC_HOLIDAYS
 from clinic_forecast.intervals import ConformalIntervals
+from clinic_forecast.metrics import compute_metrics
 from clinic_forecast.models.global_ml import GlobalMLForecaster
+from clinic_forecast.registry import LocalModelRegistry
 from clinic_forecast.staffing import StaffingRules, load_staffing_config, recommend_staffing
 from clinic_forecast.validation import RollingOriginSplitter
 
@@ -116,8 +118,12 @@ def make_future_frame(
 
 def _calibrate_intervals(
     usage: pd.DataFrame, config: BatchForecastConfig
-) -> ConformalIntervals:
-    """Fit conformal intervals on rolling-fold out-of-sample residuals."""
+) -> tuple[ConformalIntervals, pd.DataFrame]:
+    """Fit conformal intervals on rolling-fold out-of-sample residuals.
+
+    Returns the fitted intervals plus the calibration frame, whose pooled
+    metrics describe out-of-sample model quality for the registry.
+    """
     splitter = RollingOriginSplitter(
         initial_train_days=config.initial_train_days,
         horizon_days=config.horizon_days,
@@ -140,7 +146,10 @@ def _calibrate_intervals(
             )
         )
     calibration = pd.concat(calibration_frames, ignore_index=True)
-    return ConformalIntervals(coverage=config.coverage, group_col="clinic_id").fit(calibration)
+    intervals = ConformalIntervals(coverage=config.coverage, group_col="clinic_id").fit(
+        calibration
+    )
+    return intervals, calibration
 
 
 def run_batch_forecast(config: BatchForecastConfig) -> BatchForecastResult:
@@ -164,7 +173,7 @@ def run_batch_forecast(config: BatchForecastConfig) -> BatchForecastResult:
         config.coverage * 100,
         config.calibration_folds,
     )
-    conformal = _calibrate_intervals(usage, config)
+    conformal, calibration = _calibrate_intervals(usage, config)
 
     logger.info("Fitting %s model on full history", config.estimator)
     model = GlobalMLForecaster(estimator=config.estimator).fit(usage)
@@ -223,6 +232,33 @@ def run_batch_forecast(config: BatchForecastConfig) -> BatchForecastResult:
     staffing_path = staffing_dir / f"staffing_{stamp}.csv"
     staffing.to_csv(staffing_path, index=False)
     staffing.to_csv(staffing_dir / "latest.csv", index=False)
+
+    calibration_metrics = compute_metrics(calibration["visits"], calibration["forecast"])
+    registry = LocalModelRegistry(Path(config.output_dir) / "model_registry")
+    record = registry.register(
+        name=model.model_name,
+        train_start=str(usage["date"].min().date()),
+        train_end=str(origin.date()),
+        horizon_days=config.horizon_days,
+        metrics={
+            "calibration_wape": round(calibration_metrics.wape, 3),
+            "calibration_mae": round(calibration_metrics.mae, 3),
+            "calibration_bias": round(calibration_metrics.bias, 3),
+            "interval_coverage_target": config.coverage,
+        },
+        features=model.feature_columns_ or [],
+        params={"estimator": config.estimator, "calibration_folds": config.calibration_folds},
+        artifact_paths={
+            "forecasts": str(forecast_path),
+            "staffing": str(staffing_path),
+        },
+    )
+    logger.info(
+        "Registered %s v%s (calibration WAPE %.1f%%)",
+        record.name,
+        record.version,
+        calibration_metrics.wape,
+    )
 
     logger.info("Wrote %s and %s", forecast_path, staffing_path)
     return BatchForecastResult(

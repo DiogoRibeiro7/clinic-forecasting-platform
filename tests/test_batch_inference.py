@@ -80,6 +80,15 @@ def test_batch_pipeline_smoke(data_dir: Path, tmp_path: Path) -> None:
     assert latest.exists()
     pd.testing.assert_frame_equal(pd.read_csv(latest), pd.read_csv(result.forecast_path))
 
+    from clinic_forecast.registry import LocalModelRegistry
+
+    registry = LocalModelRegistry(result.forecast_path.parents[1] / "model_registry")
+    record = registry.latest("global_ml_hgb")
+    assert record is not None
+    assert record.horizon_days == 7
+    assert "calibration_wape" in record.metrics
+    assert record.artifact_paths["forecasts"] == str(result.forecast_path)
+
 
 def test_batch_pipeline_missing_data_raises(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="generate_data"):
