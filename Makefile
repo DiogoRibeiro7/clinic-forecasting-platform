@@ -1,4 +1,5 @@
-.PHONY: install data poc test lint format api batch-forecast notebook-check notebooks
+.PHONY: install data poc test lint format api batch-forecast notebook-check notebooks \
+	docker-build docker-test docker-batch docker-api
 
 install:
 	poetry install
@@ -31,3 +32,20 @@ notebook-check:
 
 notebooks:
 	poetry run jupyter lab
+
+# --- Docker demo ---
+IMAGE ?= clinic-forecast
+
+docker-build:
+	docker build -t $(IMAGE) .
+
+# The demo image is main-only; install dev tools + tests at run time.
+docker-test: docker-build
+	docker run --rm $(IMAGE) sh -c "poetry install --only dev --no-interaction && pytest -q"
+
+docker-batch: docker-build
+	docker run --rm -v "$(CURDIR)/outputs:/app/outputs" $(IMAGE) \
+		python scripts/run_batch_forecast.py --horizon 28
+
+docker-api: docker-build
+	docker run --rm -p 8000:8000 -v "$(CURDIR)/outputs:/app/outputs" $(IMAGE)
