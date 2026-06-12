@@ -44,6 +44,9 @@ data/processed/*
 !data/processed/.gitkeep
 auxiliar/
 
+# --- Batch pipeline outputs ---
+/outputs/
+
 # --- Reports / generated outputs ---
 reports/figures/*
 reports/outputs/*
