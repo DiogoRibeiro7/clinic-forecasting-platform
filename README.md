@@ -190,6 +190,18 @@ badge means the repo works from a clean checkout:
 | Tests | `make test` | The full pytest suite |
 | Notebook smoke | `make notebook-check` | Notebooks 00, 01 and 06 execute end to end after data generation |
 
+## Responsible ML documentation
+
+This project takes forecasting risk in healthcare operations seriously:
+
+- [`reports/model_card.md`](reports/model_card.md) — intended and out-of-scope
+  use, data and synthetic-data limitations, evaluation, known failure modes,
+  clinic/region-level fairness, the human-review process and retraining
+  triggers.
+- [`docs/operational_risk.md`](docs/operational_risk.md) — a practical risk
+  register (forecast-quality, data, decision-process and governance risks)
+  with mitigations, owners and an escalation summary.
+
 ## Data note
 
 The included data is synthetic. It is generated to mimic common healthcare-network demand patterns without exposing patient-level data or protected health information.
