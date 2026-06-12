@@ -26,6 +26,7 @@ mypy = "^1.11.1"
 jupyterlab = "^4.2.4"
 nbstripout = "^0.7.1"
 types-pyyaml = "^6.0.12.20260518"
+httpx = "^0.28.1"
 
 [tool.poetry.group.optional]
 optional = true

@@ -123,6 +123,47 @@ The repository reports:
 
 For operations, WAPE and bias are often more useful than MAPE because clinic volume can be low for some sites.
 
+## Batch pipeline and serving API
+
+Generate forecasts and staffing plans, then serve them locally:
+
+```bash
+# 1. Generate the processed contract data
+poetry run python scripts/generate_data.py
+
+# 2. Run the batch pipeline (forecasts + conformal intervals + staffing plans)
+poetry run python scripts/run_batch_forecast.py --horizon 28
+
+# 3. Start the read-only serving API
+poetry run uvicorn clinic_forecast.api.main:app --reload
+```
+
+Example requests once the server is running:
+
+```bash
+# Service health and artefact availability
+curl "http://127.0.0.1:8000/health"
+
+# List clinics
+curl "http://127.0.0.1:8000/clinics"
+
+# Forecasts with 90% prediction intervals for one clinic
+curl "http://127.0.0.1:8000/forecasts?clinic_id=CLINIC_001&start_date=2026-01-01&end_date=2026-01-14"
+
+# Staffing recommendations (mean and conservative upper-bound plans)
+curl "http://127.0.0.1:8000/staffing?clinic_id=CLINIC_001"
+
+# What-if: double planned marketing spend for two clinics
+curl -X POST "http://127.0.0.1:8000/scenario/marketing" \
+  -H "Content-Type: application/json" \
+  -d '{"clinic_ids": ["CLINIC_001", "CLINIC_002"], "spend_multiplier": 2.0}'
+```
+
+The API serves the files written by the batch pipeline (`outputs/forecasts/latest.csv`,
+`outputs/staffing/latest.csv`); it trains nothing at request time. Missing
+artefacts return a 503 with the command to run; unknown clinics return a 404
+listing where to find valid ids. Interactive docs are at `http://127.0.0.1:8000/docs`.
+
 ## Portfolio positioning
 
 This project is designed to show that forecasting is not just model fitting. It shows the full path from business problem to deployable decision support:
