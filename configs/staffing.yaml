@@ -1,8 +1,34 @@
+# Staffing decision-layer assumptions.
+# In a real network these are negotiated with operations leaders; here they
+# are explicit so every recommendation and cost can be traced to a number.
+
 staffing:
+  # Productivity: visits one staff member can handle per day.
   visits_per_clinician_day: 18
   visits_per_nurse_day: 24
   visits_per_frontdesk_day: 35
+  # Minimum coverage for any open clinic, regardless of demand.
   minimum_clinicians: 1
   minimum_nurses: 1
   minimum_frontdesk: 1
+  # Flat demand buffer for within-day arrival peaks (superseded by
+  # prediction-interval planning where intervals are available).
   buffer_ratio: 0.12
+  # Maximum roster capacity per clinic (hiring/room constraints).
+  max_clinicians: 16
+  max_nurses: 20
+  max_frontdesk: 9
+  # Staff can stretch to this multiple of regular capacity via overtime.
+  overtime_threshold: 1.2
+
+costs:
+  # Fully loaded day rates, currency units.
+  clinician_day_cost: 600.0
+  nurse_day_cost: 350.0
+  frontdesk_day_cost: 200.0
+  # Premium paid on overtime clinician-day equivalents.
+  overtime_multiplier: 1.5
+  # Service/queueing penalty per visit that cannot be served even with overtime.
+  understaffing_penalty_per_visit: 80.0
+  # Idle capacity is charged at this fraction of the day rate.
+  idle_penalty_ratio: 0.5
