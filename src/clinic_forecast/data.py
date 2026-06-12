@@ -8,12 +8,15 @@ Simulation design
 Demand is generated in the order a real network experiences it:
 
 1. Expected scheduled appointments are driven by clinic size, specialty,
-   weekday profile, winter/summer seasonality, public holidays, a slow growth
-   trend and marketing pressure.
-2. Scheduled appointments are drawn from a Poisson distribution around that
-   expectation.
+   a clinic-specific weekday profile, winter/summer seasonality with a
+   clinic-specific phase, public holidays, a piecewise trend with random
+   changepoints, marketing pressure with adstock carryover and diminishing
+   returns, and a persistent AR(1) demand-episode process (flu waves, local
+   events).
+2. Scheduled appointments are drawn from a negative binomial (overdispersed)
+   distribution around that expectation.
 3. No-shows and same-day cancellations remove a stochastic share of the
-   schedule.
+   schedule; the base no-show rate differs by clinic.
 4. Completed visits are capped by the clinic's daily capacity.
 
 Clinics that are not open on weekends (every specialty except urgent care)
@@ -117,6 +120,67 @@ def _validate_config(config: SyntheticDataConfig) -> None:
 def _scaled(base: float, strength: float) -> float:
     """Scale a multiplicative effect of the form (1 + delta) by a strength factor."""
     return 1.0 + strength * (base - 1.0)
+
+
+def _ar1_episode_shock(
+    rng: np.random.Generator, n_days: int, noise_level: float, persistence: float = 0.88
+) -> np.ndarray:
+    """Multiplicative AR(1) demand-episode process.
+
+    Models persistent, unpredictable demand waves (flu outbreaks, local events):
+    deviations last for days to weeks rather than resetting every day, which is
+    what makes real demand series hard to forecast from calendar features alone.
+    """
+    innovations = rng.normal(0, 0.045 * noise_level, size=n_days)
+    log_shock = np.zeros(n_days)
+    for t in range(1, n_days):
+        log_shock[t] = persistence * log_shock[t - 1] + innovations[t]
+    return np.exp(log_shock)
+
+
+def _piecewise_trend(rng: np.random.Generator, n_days: int) -> np.ndarray:
+    """Piecewise-linear trend with random changepoints.
+
+    Real clinics do not grow along one straight line: competitors open,
+    clinicians leave, referral patterns change. Each segment gets its own
+    slope, including possible decline.
+    """
+    n_changepoints = int(rng.integers(1, 4))
+    earliest, latest = int(n_days * 0.15), int(n_days * 0.85)
+    changepoints = np.sort(rng.choice(np.arange(earliest, latest), n_changepoints, replace=False))
+    boundaries = np.concatenate([[0], changepoints, [n_days]])
+
+    daily_slope = np.empty(n_days)
+    for left, right in zip(boundaries[:-1], boundaries[1:], strict=True):
+        daily_slope[left:right] = rng.normal(0.0001, 0.0002)
+    return np.clip(1.0 + np.cumsum(daily_slope), 0.6, 1.35)
+
+
+def _adstock(spend: np.ndarray, carryover: float = 0.5) -> np.ndarray:
+    """Geometric adstock: marketing effects persist beyond the spend day."""
+    stocked = np.empty_like(spend, dtype=float)
+    running = 0.0
+    for t, value in enumerate(spend):
+        running = value + carryover * running
+        stocked[t] = running
+    return stocked
+
+
+def _negative_binomial(
+    rng: np.random.Generator, mean: np.ndarray, dispersion: float = 18.0
+) -> np.ndarray:
+    """Draw overdispersed counts with the given mean.
+
+    Uses the gamma-Poisson mixture: variance = mean + mean^2 / dispersion,
+    which matches the variance-above-Poisson behaviour of real appointment
+    counts. Zero-mean entries (closed days) stay exactly zero.
+    """
+    counts = np.zeros(len(mean), dtype=np.int64)
+    positive = mean > 0
+    if positive.any():
+        rate = rng.gamma(shape=dispersion, scale=mean[positive] / dispersion)
+        counts[positive] = rng.poisson(rate)
+    return counts
 
 
 def make_clinic_metadata(config: SyntheticDataConfig) -> pd.DataFrame:
@@ -272,13 +336,13 @@ def generate_network_data(
 
         capacity = float(clinic["daily_capacity"])
         weekend_open = bool(clinic["weekend_open"])
-        size_multiplier = {"small": 0.55, "medium": 0.78, "large": 1.02}[str(clinic["clinic_size"])]
+        size_multiplier = {"small": 0.46, "medium": 0.62, "large": 0.80}[str(clinic["clinic_size"])]
         specialty_multiplier = {
-            "primary_care": 1.00,
-            "urgent_care": 1.15,
+            "primary_care": 0.92,
+            "urgent_care": 0.96,
             "cardiology": 0.72,
             "orthopedics": 0.76,
-            "pediatrics": 0.88,
+            "pediatrics": 0.82,
         }[str(clinic["specialty"])]
 
         weekday_profile = {0: 1.18, 1: 1.06, 2: 1.00, 3: 1.02, 4: 0.96}
@@ -286,9 +350,14 @@ def generate_network_data(
             weekday_profile.update({5: 0.85, 6: 0.70})
         else:
             weekday_profile.update({5: 0.48, 6: 0.0})
+        weekday_jitter = rng.normal(0, 0.06, size=7)
         weekday_effect = clinic_frame["day_of_week"].map(
             {
-                day: (_scaled(value, cfg.seasonality_strength) if value > 0 else 0.0)
+                day: (
+                    _scaled(value * (1 + weekday_jitter[day]), cfg.seasonality_strength)
+                    if value > 0
+                    else 0.0
+                )
                 for day, value in weekday_profile.items()
             }
         )
@@ -298,12 +367,20 @@ def generate_network_data(
         )
         open_by_clinic[clinic_id] = is_open
 
+        n_days = len(clinic_frame)
         winter_effect = _scaled(1.16, cfg.seasonality_strength) ** clinic_frame["is_winter"]
         summer_effect = _scaled(0.92, cfg.seasonality_strength) ** clinic_frame["is_summer"]
         holiday_effect = np.where(clinic_frame["is_holiday"] == 1, 0.35, 1.0)
-        campaign_effect = 1.0 + cfg.marketing_strength * 0.00008 * clinic_frame["marketing_spend"]
-        trend = 1.0 + np.linspace(0.0, rng.uniform(0.04, 0.18), len(clinic_frame))
-        local_noise = rng.normal(0, 6.0 * cfg.noise_level, size=len(clinic_frame))
+
+        adstocked_spend = _adstock(clinic_frame["marketing_spend"].to_numpy(dtype=float))
+        campaign_effect = 1.0 + cfg.marketing_strength * 0.085 * np.log1p(adstocked_spend / 900.0)
+
+        trend = _piecewise_trend(rng, n_days)
+        episode_shock = _ar1_episode_shock(rng, n_days, cfg.noise_level)
+        seasonal_phase = rng.uniform(-0.35, 0.35)
+        day_of_year = clinic_frame["date"].dt.dayofyear.to_numpy()
+        yearly_season = np.sin(2 * np.pi * day_of_year / 365.25 + seasonal_phase)
+        local_noise = rng.normal(0, 6.0 * cfg.noise_level, size=n_days)
 
         expected_scheduled = (
             capacity
@@ -315,18 +392,20 @@ def generate_network_data(
             * holiday_effect
             * campaign_effect
             * trend
-            + 10 * cfg.seasonality_strength * clinic_frame["yearly_season"]
+            * episode_shock
+            + 10 * cfg.seasonality_strength * yearly_season
             + local_noise
         )
         expected_scheduled = np.where(is_open, np.clip(expected_scheduled, 1, None), 0.0)
-        scheduled = rng.poisson(expected_scheduled).astype(np.int64)
+        scheduled = _negative_binomial(rng, expected_scheduled)
 
+        base_no_show = rng.uniform(0.05, 0.13)
         no_show_rate = np.clip(
-            0.08
+            base_no_show
             + 0.02 * clinic_frame["is_monday"]
-            + rng.normal(0, 0.012 * cfg.noise_level, size=len(clinic_frame)),
+            + rng.normal(0, 0.012 * cfg.noise_level, size=n_days),
             0.02,
-            0.22,
+            0.25,
         )
         cancellation_rate = np.clip(
             0.035 + rng.normal(0, 0.008 * cfg.noise_level, size=len(clinic_frame)),
