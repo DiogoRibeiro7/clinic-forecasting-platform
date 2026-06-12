@@ -1,4 +1,4 @@
-.PHONY: install data poc test lint format api
+.PHONY: install data poc test lint format api batch-forecast notebook-check notebooks
 
 install:
 	poetry install
@@ -8,6 +8,9 @@ data:
 
 poc:
 	poetry run python scripts/run_poc.py
+
+batch-forecast:
+	poetry run python scripts/run_batch_forecast.py --horizon 28
 
 test:
 	poetry run pytest
@@ -22,3 +25,9 @@ format:
 
 api:
 	poetry run uvicorn clinic_forecast.api.main:app --reload
+
+notebook-check:
+	poetry run python scripts/run_notebook.py
+
+notebooks:
+	poetry run jupyter lab

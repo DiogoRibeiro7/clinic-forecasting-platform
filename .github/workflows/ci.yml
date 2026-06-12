@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    name: Lint, type-check and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      # The three commands below match `make lint` and `make test` exactly.
+      - name: Ruff
+        run: poetry run ruff check src tests scripts
+
+      - name: Mypy
+        run: poetry run mypy src
+
+      - name: Pytest
+        run: poetry run pytest
+
+  notebook-smoke:
+    name: Notebook smoke check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Generate data
+        run: poetry run python scripts/generate_data.py
+
+      - name: Execute lightweight notebooks
+        run: >-
+          poetry run python scripts/run_notebook.py
+          notebooks/00_business_problem_and_poc_design.ipynb
+          notebooks/01_synthetic_healthcare_data_generation.ipynb
+          notebooks/06_staffing_optimization_and_decision_layer.ipynb

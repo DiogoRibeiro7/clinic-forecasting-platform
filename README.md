@@ -1,5 +1,7 @@
 # Clinic Forecasting Platform
 
+[![CI](https://github.com/DiogoRibeiro7/clinic-forecasting-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/DiogoRibeiro7/clinic-forecasting-platform/actions/workflows/ci.yml)
+
 A portfolio-grade proof of concept for forecasting clinic usage and staffing needs across a large healthcare network.
 
 The project simulates a realistic operational setting where multiple clinics have different demand patterns, marketing activity, seasonal effects, no-show behaviour, capacity constraints and staffing rules. The goal is not only to forecast appointment volume, but to translate forecasts into decisions that improve scheduling and resource allocation.
@@ -176,6 +178,17 @@ This project is designed to show that forecasting is not just model fitting. It 
 ```text
 raw clinic data → features → forecasts → staffing recommendations → operational report
 ```
+
+## Quality gates
+
+CI (GitHub Actions) runs the same commands available locally, so a green
+badge means the repo works from a clean checkout:
+
+| Gate | Local command | What it checks |
+| --- | --- | --- |
+| Lint | `make lint` (ruff + mypy) | Style, imports, line length; strict typing on `src/` |
+| Tests | `make test` | The full pytest suite |
+| Notebook smoke | `make notebook-check` | Notebooks 00, 01 and 06 execute end to end after data generation |
 
 ## Data note
 
