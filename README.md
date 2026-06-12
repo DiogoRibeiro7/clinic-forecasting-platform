@@ -4,6 +4,11 @@ A portfolio-grade proof of concept for forecasting clinic usage and staffing nee
 
 The project simulates a realistic operational setting where multiple clinics have different demand patterns, marketing activity, seasonal effects, no-show behaviour, capacity constraints and staffing rules. The goal is not only to forecast appointment volume, but to translate forecasts into decisions that improve scheduling and resource allocation.
 
+> **Reviewing this project?** Start with
+> [`notebooks/10_executive_summary_forecasting_to_staffing.ipynb`](notebooks/10_executive_summary_forecasting_to_staffing.ipynb)
+> — the end-to-end story from business problem to costed staffing decisions,
+> with every number computed live. Implementation depth lives in notebooks 01-06.
+
 ## What this project demonstrates
 
 - Time-series forecasting for healthcare operations.
