@@ -1,0 +1,23 @@
+# Monitoring alert thresholds.
+# Each value answers: "how far can this drift before a human should look?"
+# They are starting points to be tuned with operations, not statistical truths.
+
+thresholds:
+  # Systematic over/under-forecast per clinic or region, in WAPE-style
+  # percentage points. Bias compounds into chronic mis-staffing.
+  max_abs_bias_pct: 10.0
+  # Absolute accuracy ceiling per clinic. Above this the forecast is not
+  # decision-grade regardless of how it compares to training time.
+  max_wape_pct: 35.0
+  # Recent WAPE / calibration-time WAPE. 1.3 = 30% worse than the model
+  # demonstrated at training time -> retraining candidate.
+  max_wape_degradation_ratio: 1.3
+  # |recent mean visits / reference mean - 1|. Large shifts mean the
+  # calibration window no longer represents current demand.
+  max_volume_shift_ratio: 0.25
+  # Same, for marketing spend - upstream behaviour change invalidates the
+  # carried-forward marketing plan assumption.
+  max_spend_shift_ratio: 0.5
+  # Absolute change in mean capacity utilisation. Rising utilisation means
+  # more censored peaks and a growing low-bias on the demand target.
+  max_utilization_shift: 0.15
