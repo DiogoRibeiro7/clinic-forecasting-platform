@@ -95,9 +95,11 @@ src/clinic_forecast/
 
 ## Quick start
 
-This project uses Poetry.
+This project uses Poetry and targets **Python 3.11** (see the Python-version
+note under Optional dependencies if you plan to run the Nixtla models).
 
 ```bash
+poetry env use 3.11
 poetry install
 poetry run python scripts/generate_data.py
 poetry run python scripts/run_poc.py
@@ -130,13 +132,15 @@ Optional tools include:
 Every optional model is wired behind a guarded import and returns the project's
 common forecast schema, so the benchmark harness, evaluation utilities,
 prediction intervals and staffing layer consume them with no special-casing.
-Notebook 11 runs whichever are installed in one head-to-head leaderboard.
+Notebook 11 runs all twelve installed models in one head-to-head leaderboard.
 
-> **Native-library note:** several of these packages each bundle an OpenMP
-> runtime. On Windows, co-loading them can require `KMP_DUPLICATE_LIB_OK=TRUE`
-> (set automatically for the test suite via `tests/conftest.py`); `statsforecast`
-> (numba) and `mlforecast` are most reliable on Linux/CI. The core PoC never
-> depends on any of them.
+> **Python version:** use **Python 3.11** (the project supports `>=3.11,<3.13`).
+> The numba-based Nixtla packages (`statsforecast`, `mlforecast`) are unstable on
+> **Windows + Python 3.12** — statsforecast itself pins an older numba for
+> Windows 3.10/3.11 for exactly this reason — and will crash there. On Python
+> 3.11 the entire model zoo runs. Several of these packages bundle their own
+> OpenMP runtime; `tests/conftest.py` sets `KMP_DUPLICATE_LIB_OK=TRUE` so they
+> co-load cleanly. The core PoC never depends on any optional model.
 
 ## Main modelling idea
 
@@ -172,7 +176,7 @@ Read in order; start with 10 for the summary. All ship executed with outputs.
 | 08 | Marketing scenario planning | What-if demand and staffing impact |
 | 09 | Monitoring and retraining | Drift alerts and retraining policy |
 | 10 | Executive summary | End-to-end story, every number live |
-| 11 | Comprehensive model benchmark | All model families head-to-head on one leaderboard |
+| 11 | Comprehensive model benchmark | 12 models across all families head-to-head on one leaderboard |
 
 ## Forecasting metrics
 
