@@ -108,3 +108,40 @@ def test_lstm_fit_and_forecast_shapes() -> None:
     assert len(forecast) == 7 * 2
     assert (forecast["forecast"] >= 0).all()
     assert (forecast["model"] == "lstm").all()
+
+
+# ----------------- Prophet panel wrapper -----------------
+
+
+def test_prophet_panel_forecast_common_schema() -> None:
+    pytest.importorskip("prophet")
+    from clinic_forecast.models.optional_prophet import prophet_panel_forecast
+
+    panel = make_panel(n_days=120)
+    cutoff = panel["date"].max() - pd.Timedelta(days=14)
+    train, future = panel[panel["date"] <= cutoff], panel[panel["date"] > cutoff]
+
+    out = prophet_panel_forecast(train, future)
+    assert list(out.columns) == ["clinic_id", "date", "forecast", "model"]
+    assert (out["model"] == "prophet").all()
+    assert len(out) == len(future)
+    assert (out["forecast"] >= 0).all()
+    assert set(out["clinic_id"]) == {"A", "B"}
+
+
+def test_prophet_panel_missing_dependency_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        if name == "prophet":
+            raise ImportError("blocked")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    from clinic_forecast.models.optional_prophet import prophet_panel_forecast
+
+    panel = make_panel(n_days=40)
+    with pytest.raises(ImportError, match="poetry install --with optional"):
+        prophet_panel_forecast(panel, panel)

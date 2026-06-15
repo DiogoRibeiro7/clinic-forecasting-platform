@@ -21,9 +21,11 @@ from sklearn.ensemble import HistGradientBoostingRegressor
 
 from clinic_forecast.features import OUTCOME_COLUMNS, make_supervised_frame
 
+Estimator = Literal["hgb", "xgboost", "lightgbm"]
 
-def _build_estimator(estimator: Literal["hgb", "xgboost"], random_state: int) -> Any:
-    """Create the underlying regressor; XGBoost is an optional dependency."""
+
+def _build_estimator(estimator: Estimator, random_state: int) -> Any:
+    """Create the underlying regressor; XGBoost/LightGBM are optional deps."""
     if estimator == "hgb":
         return HistGradientBoostingRegressor(
             max_iter=300, learning_rate=0.06, random_state=random_state
@@ -43,7 +45,25 @@ def _build_estimator(estimator: Literal["hgb", "xgboost"], random_state: int) ->
             random_state=random_state,
             n_jobs=-1,
         )
-    raise ValueError(f"Unknown estimator: {estimator!r}; expected 'hgb' or 'xgboost'.")
+    if estimator == "lightgbm":
+        try:
+            from lightgbm import LGBMRegressor
+        except ImportError as exc:
+            raise ImportError(
+                "LightGBM is not installed. Run `poetry install --with optional` "
+                "or use estimator='hgb'."
+            ) from exc
+        return LGBMRegressor(
+            n_estimators=400,
+            learning_rate=0.06,
+            max_depth=6,
+            random_state=random_state,
+            n_jobs=-1,
+            verbose=-1,
+        )
+    raise ValueError(
+        f"Unknown estimator: {estimator!r}; expected 'hgb', 'xgboost' or 'lightgbm'."
+    )
 
 
 @dataclass
@@ -53,8 +73,8 @@ class GlobalMLForecaster:
     Parameters
     ----------
     estimator:
-        ``"hgb"`` (scikit-learn HistGradientBoostingRegressor, default) or
-        ``"xgboost"`` (optional dependency).
+        ``"hgb"`` (scikit-learn HistGradientBoostingRegressor, default),
+        ``"xgboost"`` or ``"lightgbm"`` (both optional dependencies).
     target_col, date_col, id_col:
         Panel column names.
     random_state:
@@ -64,7 +84,7 @@ class GlobalMLForecaster:
     target_col: str = "visits"
     date_col: str = "date"
     id_col: str = "clinic_id"
-    estimator: Literal["hgb", "xgboost"] = "hgb"
+    estimator: Estimator = "hgb"
     random_state: int = 42
     feature_columns_: list[str] | None = field(default=None, init=False, repr=False)
 

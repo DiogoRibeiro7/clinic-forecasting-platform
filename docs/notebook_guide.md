@@ -52,6 +52,15 @@ scenario comparison (static roster vs mean plan vs upper plan).
 The end-to-end story for technical and non-technical reviewers, with minimal
 code and every number computed live.
 
+## 11 — Comprehensive model benchmark
+
+Runs every installed model family — baselines, SARIMAX, Prophet, the global
+gradient-boosted models (HGB/XGBoost/LightGBM), and (where available) the
+Nixtla ecosystem, deep-learning and foundation models — through one shared
+benchmark harness on identical folds, producing a single leaderboard. Requires
+the optional dependencies for the non-core models; gracefully skips any that
+are unavailable.
+
 ## Running the notebooks
 
 Generate the data first — notebooks 02-06 and 10 read the processed CSVs:

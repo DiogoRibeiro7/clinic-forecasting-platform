@@ -91,6 +91,15 @@ def test_xgboost_estimator_is_optional(split) -> None:
     assert model.model_name == "global_ml_xgboost"
 
 
+def test_lightgbm_estimator_is_optional(split) -> None:
+    train, _ = split
+    pytest.importorskip("lightgbm")
+    model = GlobalMLForecaster(estimator="lightgbm").fit(train)
+    assert model.model_name == "global_ml_lightgbm"
+    predictions = model.predict_known_future(pd.concat([train, split[1]], ignore_index=True))
+    assert (predictions["forecast"] >= 0).all()
+
+
 def test_unknown_estimator_rejected() -> None:
     with pytest.raises(ValueError, match="Unknown estimator"):
         GlobalMLForecaster(estimator="catboost")  # type: ignore[arg-type]

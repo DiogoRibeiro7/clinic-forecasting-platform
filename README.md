@@ -19,9 +19,13 @@ raw data to a costed, served staffing decision:
 - **Data engineering:** typed data contracts, a configurable synthetic
   generator with realistic difficulty (overdispersion, demand episodes, trend
   changepoints, marketing adstock, capacity censoring).
-- **Time-series modelling:** baselines, per-clinic SARIMAX with exogenous
-  inputs and automatic order selection, and a leakage-controlled global ML
-  model with recursive multi-step forecasting.
+- **Time-series modelling:** a broad model zoo behind one common forecast
+  schema — baselines, per-clinic SARIMAX (with exogenous inputs and automatic
+  order selection), Prophet, a leakage-controlled global ML model
+  (HistGradientBoosting / XGBoost / LightGBM) with recursive multi-step
+  forecasting, the Nixtla ecosystem (StatsForecast, MLForecast,
+  NeuralForecast), zero-shot foundation models (TimesFM, Chronos, Lag-Llama)
+  and the TimeGPT API — all comparable in one benchmark harness.
 - **Correct evaluation:** rolling-origin backtesting and one shared set of
   metrics across every notebook.
 - **Uncertainty:** split conformal prediction intervals with per-clinic
@@ -81,7 +85,10 @@ src/clinic_forecast/
 ├── noshow.py         no-show / cancellation forecasting
 ├── monitoring.py     drift + quality alerts
 ├── registry.py       local model registry
-├── models/           baseline, sarimax, global_ml, lstm, timegpt, prophet
+├── benchmark.py      run any set of models head-to-head on shared folds
+├── models/           baseline, sarimax, global_ml, optional_prophet,
+│                     nixtla_models (Stats/ML/NeuralForecast), lstm,
+│                     foundation (TimesFM/Chronos/Lag-Llama), timegpt
 ├── pipelines/        batch_inference + helpers
 └── api/              FastAPI serving layer
 ```
@@ -113,10 +120,23 @@ poetry install --with optional
 
 Optional tools include:
 
-- `prophet` for additive models with seasonality and holiday effects.
-- `xgboost` for gradient-boosted forecasting.
-- `torch` for the LSTM notebook.
-- `nixtla` for TimeGPT API-based forecasts.
+- `prophet` for additive trend/seasonality/holiday models.
+- `xgboost` and `lightgbm` as alternative global-model estimators.
+- `statsforecast`, `mlforecast`, `neuralforecast` — the Nixtla ecosystem
+  (AutoARIMA/AutoETS, gradient-boosted MLForecast, NHITS/NBEATS).
+- `torch` for the LSTM benchmark.
+- `nixtla` for the TimeGPT API benchmark.
+
+Every optional model is wired behind a guarded import and returns the project's
+common forecast schema, so the benchmark harness, evaluation utilities,
+prediction intervals and staffing layer consume them with no special-casing.
+Notebook 11 runs whichever are installed in one head-to-head leaderboard.
+
+> **Native-library note:** several of these packages each bundle an OpenMP
+> runtime. On Windows, co-loading them can require `KMP_DUPLICATE_LIB_OK=TRUE`
+> (set automatically for the test suite via `tests/conftest.py`); `statsforecast`
+> (numba) and `mlforecast` are most reliable on Linux/CI. The core PoC never
+> depends on any of them.
 
 ## Main modelling idea
 
@@ -152,6 +172,7 @@ Read in order; start with 10 for the summary. All ship executed with outputs.
 | 08 | Marketing scenario planning | What-if demand and staffing impact |
 | 09 | Monitoring and retraining | Drift alerts and retraining policy |
 | 10 | Executive summary | End-to-end story, every number live |
+| 11 | Comprehensive model benchmark | All model families head-to-head on one leaderboard |
 
 ## Forecasting metrics
 
