@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA_FILE = ROOT / "data" / "processed" / "clinic_daily_usage.csv"
 
 #: Notebooks that read the processed data instead of generating their own.
-NEEDS_DATA = {"02", "03", "04", "05", "06", "10"}
+NEEDS_DATA = {"02", "03", "04", "05", "06", "07", "08", "09", "10", "11"}
 
 
 def parse_args() -> argparse.Namespace:
