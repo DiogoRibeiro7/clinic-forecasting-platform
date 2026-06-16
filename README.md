@@ -127,12 +127,14 @@ Optional tools include:
 - `statsforecast`, `mlforecast`, `neuralforecast` — the Nixtla ecosystem
   (AutoARIMA/AutoETS, gradient-boosted MLForecast, NHITS/NBEATS).
 - `torch` for the LSTM benchmark.
+- `chronos-forecasting` for the Chronos zero-shot foundation model.
 - `nixtla` for the TimeGPT API benchmark.
 
 Every optional model is wired behind a guarded import and returns the project's
 common forecast schema, so the benchmark harness, evaluation utilities,
 prediction intervals and staffing layer consume them with no special-casing.
-Notebook 11 runs all twelve installed models in one head-to-head leaderboard.
+Notebook 11 runs thirteen installed models — including the Chronos zero-shot
+foundation model — in one head-to-head leaderboard.
 
 > **Python version:** use **Python 3.11** (the project supports `>=3.11,<3.13`).
 > The numba-based Nixtla packages (`statsforecast`, `mlforecast`) are unstable on
@@ -176,7 +178,7 @@ Read in order; start with 10 for the summary. All ship executed with outputs.
 | 08 | Marketing scenario planning | What-if demand and staffing impact |
 | 09 | Monitoring and retraining | Drift alerts and retraining policy |
 | 10 | Executive summary | End-to-end story, every number live |
-| 11 | Comprehensive model benchmark | 12 models across all families head-to-head on one leaderboard |
+| 11 | Comprehensive model benchmark | 13 models across all families (incl. Chronos foundation) head-to-head on one leaderboard |
 
 ## Forecasting metrics
 
