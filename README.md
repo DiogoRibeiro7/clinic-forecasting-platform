@@ -276,3 +276,10 @@ This project takes forecasting risk in healthcare operations seriously:
 ## Data note
 
 The included data is synthetic. It is generated to mimic common healthcare-network demand patterns without exposing patient-level data or protected health information.
+
+## License
+
+Released under the [MIT License](LICENSE) — free to use, modify and distribute
+with attribution. This is a proof of concept on synthetic data; see
+[`reports/model_card.md`](reports/model_card.md) for intended-use and
+out-of-scope notes before adapting it to real operations.
