@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
+from typing import Any
 
+import httpx
 import pandas as pd
 import pytest
-from fastapi.testclient import TestClient
 
 from clinic_forecast.api.main import app
 
 
 @pytest.fixture()
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def api_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     data_dir = tmp_path / "processed"
     output_dir = tmp_path / "outputs"
     (output_dir / "forecasts").mkdir(parents=True)
@@ -64,11 +66,21 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
     monkeypatch.setenv("CLINIC_FORECAST_DATA_DIR", str(data_dir))
     monkeypatch.setenv("CLINIC_FORECAST_OUTPUT_DIR", str(output_dir))
-    return TestClient(app)
 
 
-def test_health_reports_artefacts(client: TestClient) -> None:
-    response = client.get("/health")
+def request(method: str, path: str, **kwargs: Any) -> httpx.Response:
+    """Issue one request against the FastAPI app without TestClient."""
+
+    async def _send() -> httpx.Response:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            return await client.request(method, path, **kwargs)
+
+    return asyncio.run(_send())
+
+
+def test_health_reports_artefacts(api_env: None) -> None:
+    response = request("GET", "/health")
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
@@ -76,8 +88,8 @@ def test_health_reports_artefacts(client: TestClient) -> None:
     assert body["staffing_available"] is True
 
 
-def test_clinics_lists_metadata(client: TestClient) -> None:
-    response = client.get("/clinics")
+def test_clinics_lists_metadata(api_env: None) -> None:
+    response = request("GET", "/clinics")
     assert response.status_code == 200
     body = response.json()
     assert len(body) == 2
@@ -85,8 +97,9 @@ def test_clinics_lists_metadata(client: TestClient) -> None:
     assert body[1]["weekend_open"] is True
 
 
-def test_forecasts_filters_by_clinic_and_window(client: TestClient) -> None:
-    response = client.get(
+def test_forecasts_filters_by_clinic_and_window(api_env: None) -> None:
+    response = request(
+        "GET",
         "/forecasts",
         params={
             "clinic_id": "CLINIC_001",
@@ -101,22 +114,23 @@ def test_forecasts_filters_by_clinic_and_window(client: TestClient) -> None:
     assert body[0]["y_lower"] <= body[0]["y_pred"] <= body[0]["y_upper"]
 
 
-def test_forecasts_unknown_clinic_404(client: TestClient) -> None:
-    response = client.get("/forecasts", params={"clinic_id": "CLINIC_999"})
+def test_forecasts_unknown_clinic_404(api_env: None) -> None:
+    response = request("GET", "/forecasts", params={"clinic_id": "CLINIC_999"})
     assert response.status_code == 404
     assert "Unknown clinic_id" in response.json()["detail"]
 
 
-def test_forecasts_empty_window_404_with_available_range(client: TestClient) -> None:
-    response = client.get(
+def test_forecasts_empty_window_404_with_available_range(api_env: None) -> None:
+    response = request(
+        "GET",
         "/forecasts", params={"clinic_id": "CLINIC_001", "start_date": "2030-01-01"}
     )
     assert response.status_code == 404
     assert "available dates" in response.json()["detail"]
 
 
-def test_staffing_returns_both_plans(client: TestClient) -> None:
-    response = client.get("/staffing", params={"clinic_id": "CLINIC_002"})
+def test_staffing_returns_both_plans(api_env: None) -> None:
+    response = request("GET", "/staffing", params={"clinic_id": "CLINIC_002"})
     assert response.status_code == 200
     body = response.json()
     assert len(body) == 7
@@ -128,15 +142,14 @@ def test_missing_outputs_returns_503(
 ) -> None:
     monkeypatch.setenv("CLINIC_FORECAST_OUTPUT_DIR", str(tmp_path / "empty"))
     monkeypatch.setenv("CLINIC_FORECAST_DATA_DIR", str(tmp_path / "empty"))
-    bare_client = TestClient(app)
-
-    response = bare_client.get("/forecasts", params={"clinic_id": "CLINIC_001"})
+    response = request("GET", "/forecasts", params={"clinic_id": "CLINIC_001"})
     assert response.status_code == 503
     assert "run_batch_forecast" in response.json()["detail"]
 
 
-def test_marketing_scenario_scales_open_days(client: TestClient) -> None:
-    response = client.post(
+def test_marketing_scenario_scales_open_days(api_env: None) -> None:
+    response = request(
+        "POST",
         "/scenario/marketing",
         json={"clinic_ids": ["CLINIC_001"], "spend_multiplier": 2.0},
     )
@@ -148,14 +161,15 @@ def test_marketing_scenario_scales_open_days(client: TestClient) -> None:
     assert point["scenario_forecast"] > point["baseline_forecast"]
 
 
-def test_marketing_scenario_unknown_clinic_404(client: TestClient) -> None:
-    response = client.post(
+def test_marketing_scenario_unknown_clinic_404(api_env: None) -> None:
+    response = request(
+        "POST",
         "/scenario/marketing",
         json={"clinic_ids": ["CLINIC_404"], "spend_multiplier": 1.5},
     )
     assert response.status_code == 404
 
 
-def test_marketing_scenario_rejects_invalid_multiplier(client: TestClient) -> None:
-    response = client.post("/scenario/marketing", json={"spend_multiplier": 0})
+def test_marketing_scenario_rejects_invalid_multiplier(api_env: None) -> None:
+    response = request("POST", "/scenario/marketing", json={"spend_multiplier": 0})
     assert response.status_code == 422

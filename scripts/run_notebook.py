@@ -1,8 +1,9 @@
 """Execute notebooks headlessly and report failures clearly.
 
-Used locally via `make notebook-check` and in CI. Notebooks are executed
-in place against the project kernel; the first failing cell is reported
-with its source and error so failures are easy to interpret.
+Used locally via `make notebook-check` and in CI. By default notebooks are
+executed in memory so validation does not rewrite tracked files; pass
+``--write`` to persist the refreshed outputs. The first failing cell is
+reported with its source and error so failures are easy to interpret.
 """
 
 from __future__ import annotations
@@ -36,10 +37,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--timeout", type=int, default=900, help="Per-cell timeout in seconds."
     )
+    parser.add_argument(
+        "--write",
+        action="store_true",
+        help="Write executed notebooks back to disk instead of validating in memory only.",
+    )
     return parser.parse_args()
 
 
-def run_notebook(path: Path, timeout: int) -> bool:
+def run_notebook(path: Path, timeout: int, write: bool) -> bool:
     """Execute one notebook; return True on success and print errors clearly."""
     import nbformat
     from nbclient import NotebookClient
@@ -61,7 +67,8 @@ def run_notebook(path: Path, timeout: int) -> bool:
         for line in source[-5:]:
             print(f"  {line}")
         return False
-    nbformat.write(notebook, path)
+    if write:
+        nbformat.write(notebook, path)
     print(f"ok: {path}")
     return True
 
@@ -84,7 +91,7 @@ def main() -> int:
             )
             failures += 1
             continue
-        if not run_notebook(path, args.timeout):
+        if not run_notebook(path, args.timeout, args.write):
             failures += 1
     if failures:
         print(f"\n{failures} notebook(s) failed.")
