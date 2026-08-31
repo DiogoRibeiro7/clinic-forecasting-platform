@@ -6,83 +6,111 @@ local Poetry environment or entirely through Docker. Pick one track.
 ## What the demo shows
 
 1. Synthetic, PHI-free healthcare-network data generation.
-2. A global ML demand forecast with calibrated prediction intervals.
-3. Conversion of forecasts into costed staffing recommendations.
-4. A serving API exposing forecasts, staffing and a marketing what-if.
+2. Fixed-origin recursive demand forecasting with calibrated uncertainty.
+3. A prospectively frozen capacity-aware hybrid staffing policy.
+4. A versioned read-only API that exposes both the legacy and hybrid contracts.
 
 ---
 
 ## Track A — local (Poetry)
 
 ```bash
-# 0. One-time setup (~1-2 min)
+# 0. One-time setup
 make install
 
-# 1. Generate the four contract datasets        (~5 s)
+# 1. Generate the four contract datasets
 make data
 
-# 2. Run the batch pipeline: forecast + intervals + staffing  (~15 s)
+# 2a. Run the legacy completed-visits batch path
 make batch-forecast
-#    -> writes outputs/forecasts/latest.csv and outputs/staffing/latest.csv
-#    -> registers the model under outputs/model_registry/
+
+# 2b. Run the operational role-specific hybrid path
+poetry run python scripts/run_role_specific_batch.py --horizon 28
 
 # 3. Serve the results
 make api
-#    -> http://127.0.0.1:8000/docs for interactive docs
+# -> http://127.0.0.1:8000/docs
+```
+
+The hybrid path writes:
+
+```text
+outputs/role_specific/forecasts/latest.csv
+outputs/role_specific/staffing/latest.csv
+outputs/role_specific/monitoring/latest.csv
 ```
 
 With the server up, in another terminal:
 
 ```bash
+# Legacy compatibility surface
 curl "http://127.0.0.1:8000/health"
 curl "http://127.0.0.1:8000/forecasts?clinic_id=CLINIC_001" | head
 curl "http://127.0.0.1:8000/staffing?clinic_id=CLINIC_001" | head
-curl -X POST "http://127.0.0.1:8000/scenario/marketing" \
-  -H "Content-Type: application/json" \
-  -d '{"clinic_ids": ["CLINIC_001"], "spend_multiplier": 2.0}'
+
+# Versioned hybrid surface
+curl "http://127.0.0.1:8000/v2/health"
+curl "http://127.0.0.1:8000/v2/forecasts?clinic_id=CLINIC_001" | head
+curl "http://127.0.0.1:8000/v2/staffing?clinic_id=CLINIC_001" | head
+curl "http://127.0.0.1:8000/v2/hybrid-monitoring" | head
 ```
 
-## Track B — Docker (no local Python)
+## Track B — Docker
 
 ```bash
-# Build the demo image (generates data at build time)   (~2-3 min first build)
 make docker-build
-
-# Run the test suite inside the container
 make docker-test
-
-# Run the batch pipeline, writing outputs to ./outputs on the host
 make docker-batch
-
-# Serve the API (after docker-batch has populated ./outputs)
 make docker-api
-#    -> http://127.0.0.1:8000/docs
 ```
 
-The image installs only the main dependency group, so it stays light; the
-optional LSTM/TimeGPT extras are deliberately excluded.
+The existing Docker convenience path demonstrates the legacy batch contract.
+For the hybrid decision path, run `scripts/run_role_specific_batch.py` in the
+same project environment before starting the API.
 
 ---
 
 ## The narrative to tell while it runs
 
-- **Data (notebook 01):** "Everything is synthetic and free of patient data,
-  but engineered to be *hard* — overdispersed counts, multi-week demand
-  episodes, trend breaks, holiday closures. Easy data would make any model
-  look good."
-- **Model (notebook 04):** "One global model serves the whole network and
-  beats the seasonal-naive baseline on every validation fold, at constant
-  training cost in the number of clinics."
-- **Uncertainty (notebook 04/06):** "Conformal intervals turn past
-  out-of-sample errors into a calibrated range, so each clinic gets a safety
-  margin sized to its own unpredictability — not a flat guess."
-- **Decision (notebook 06):** "The interval upper bound drives a conservative
-  staffing plan; we cost it in money against realised demand and compare it
-  to the current static roster. That table is the business case."
-- **Serving (API):** "All of this is one batch run plus a read-only API — no
-  training at request time, no database, runs anywhere the CSV outputs exist."
+- **Data:** "Everything is synthetic and free of patient data, but engineered
+  to include overdispersion, demand episodes, changepoints, closures and
+  capacity censoring."
+- **Evaluation:** "The primary contract is fixed-origin multi-day forecasting.
+  The complete holdout horizon is forecast recursively; realised future targets
+  never become lag inputs."
+- **Uncertainty:** "Split-conformal intervals are calibrated from the same
+  recursive rolling-fold residuals used by deployment-style forecasts."
+- **Target problem:** "Completed visits are throughput, but on busy days they
+  are capacity-censored and can understate the demand clinical staffing needs
+  to serve."
+- **Decision evidence:** "We first benchmarked completed visits against
+  reconstructed attended demand, then benchmarked staffing consequences, then
+  froze a prospective switch before testing it. We did not tune the switch
+  after seeing the result."
+- **Hybrid policy:** "Clinical staffing uses completed visits by default and
+  switches to attended demand only when the completed-visits 90% upper
+  conformal bound reaches known clinic capacity. Front desk always uses
+  scheduled appointments."
+- **Result:** "Across four outer folds, the frozen hybrid reduced unmet demand
+  by about 9.31% versus completed-visits-only staffing for about 0.70% higher
+  total cost, and it strictly beat attended-demand-only staffing overall on
+  both cost and unmet demand."
+- **Limitation:** "The trigger is useful, not magical: it also fires on some
+  uncensored days, and all decision evidence is synthetic."
+- **Serving:** "The old API contract remains unchanged. `/v2` exposes the
+  hybrid artefacts and enough fields to audit why a target was selected. The
+  API trains nothing and recomputes no decision at request time."
 
-## For the deepest dive
+## Evidence to open during review
 
-Open `notebooks/10_executive_summary_forecasting_to_staffing.ipynb` — the
-whole story with every number computed live.
+- `reports/evidence/capacity_target_benchmark/RESULTS.md`
+- `reports/evidence/staffing_decision_benchmark/interpretation.md`
+- `reports/evidence/hybrid_policy_benchmark/RESULT.md`
+- `docs/hybrid_policy.md`
+- `docs/api_v2_contract.md`
+- `reports/model_card.md`
+
+For the original notebook narrative, open
+`notebooks/10_executive_summary_forecasting_to_staffing.ipynb`. Treat its older
+single-target staffing story as historical context where it differs from the
+committed hybrid evidence above.
