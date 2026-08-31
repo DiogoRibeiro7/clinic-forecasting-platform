@@ -26,8 +26,13 @@ The original roadmap described the first PoC plan and became stale as later stag
 - [x] Implement model-based marketing what-if scenarios with explicit non-causal framing.
 - [x] Reconstruct pre-capacity attended demand from scheduled demand, no-shows and cancellations.
 - [x] Quantify unmet demand and capacity censoring explicitly.
-- [x] Add a role-specific batch path: clinicians/nurses use attended demand and front desk uses scheduled appointments.
-- [x] Add a paired fixed-origin benchmark comparing attended-demand and completed-visit targets against attended demand, including censored-period WAPE, bias, mean shortfall and underforecast rate.
+- [x] Add a role-specific forecasting path for attended, completed and scheduled demand.
+- [x] Commit paired target evidence showing attended demand improves censored-period forecasting.
+- [x] Commit paired staffing evidence showing target choice is a cost/service trade-off.
+- [x] Freeze a capacity-aware hybrid switch before evaluating it.
+- [x] Confirm the frozen hybrid improves the overall cost/service frontier.
+- [x] Promote the frozen hybrid into the role-specific batch staffing path.
+- [x] Expose capacity pressure, selected clinical target and switch-rate monitoring.
 
 ### Production-shaped engineering
 
@@ -35,24 +40,26 @@ The original roadmap described the first PoC plan and became stale as later stag
 - [x] Add a batch inference pipeline.
 - [x] Add local model-registry metadata.
 - [x] Add monitoring for forecast quality, bias, volume shifts and interval coverage.
+- [x] Add descriptive monitoring for hybrid-policy switch frequency.
 - [x] Add FastAPI endpoints for forecast and staffing retrieval.
 - [x] Add Docker, CI, model-card and operational-risk documentation.
 
 ## Next scientific work
 
-- [ ] Regenerate and commit a fresh multi-fold benchmark artifact after the recursive evaluation fix; do not reuse retired teacher-forced WAPE values.
-- [ ] Run and commit the paired capacity-target benchmark evidence; use its censored-period results to decide whether role-specific forecasting should replace completed-visit staffing.
-- [ ] Report performance by forecast horizon as well as pooled WAPE and bias.
-- [ ] Add paired uncertainty for model-to-model benchmark differences across rolling origins.
+- [ ] Regenerate and commit a fresh general multi-model benchmark artifact after the recursive evaluation fix; do not reuse retired teacher-forced WAPE values.
+- [ ] Report target and policy performance by forecast horizon rather than only pooled over 28 days.
+- [ ] Add paired uncertainty for model and policy differences across rolling origins.
 - [ ] Evaluate interval coverage by horizon and clinic, not only pooled across calibration residuals.
+- [ ] Replicate the frozen hybrid policy across alternate synthetic seeds and demand/capacity regimes without changing its switch.
 - [ ] Add holiday calendars for an explicitly selected deployment geography.
 - [ ] Define how latent attended demand would be identified from real operational data where it is not directly reconstructible.
 
 ## Next integration work
 
-- [ ] Decide when the role-specific batch path becomes the default serving path; keep the existing completed-visit API stable until that migration is explicit.
-- [ ] Extend monitoring dashboards with unmet-demand and censoring rates.
-- [ ] Add API fields/endpoints for scheduled-demand and attended-demand forecasts once the serving contract is versioned.
+- [ ] Version the serving contract before exposing scheduled, attended and hybrid clinical forecasts through the API.
+- [ ] Decide whether the role-specific hybrid path should replace the legacy completed-visits serving path.
+- [ ] Surface hybrid switch-rate monitoring in the operational dashboard.
+- [ ] Add realised post-horizon evaluation of switch precision/recall once outcomes become available.
 
 ## Next decision-science work
 
@@ -64,6 +71,6 @@ The original roadmap described the first PoC plan and became stale as later stag
 ## Operational maturity
 
 - [ ] Add a scheduled/manual integration workflow that installs and executes the heavy optional model stack.
-- [ ] Persist benchmark provenance: commit SHA, environment, folds, model configuration and random seeds.
+- [x] Persist benchmark provenance for the target, staffing and hybrid evidence runs.
 - [ ] Add scheduled retraining orchestration rather than only retraining signals.
 - [ ] Add real-data adapters and governance checks before any non-synthetic deployment claim.

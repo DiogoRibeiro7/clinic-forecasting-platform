@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -13,6 +14,7 @@ from clinic_forecast.pipelines.role_specific_batch import (
 )
 from clinic_forecast.role_specific import (
     CLINICAL_TARGET,
+    COMPLETED_TARGET,
     FRONTDESK_TARGET,
     prepare_target_history,
     recommend_role_specific_staffing,
@@ -50,14 +52,20 @@ def test_capacity_targets_match_generator_funnel() -> None:
 def test_target_history_removes_contemporaneous_outcomes() -> None:
     usage = make_usage()
     clinical = prepare_target_history(usage, CLINICAL_TARGET)
+    completed = prepare_target_history(usage, COMPLETED_TARGET)
     frontdesk = prepare_target_history(usage, FRONTDESK_TARGET)
 
     assert CLINICAL_TARGET in clinical.columns
     assert FRONTDESK_TARGET not in clinical.columns
-    assert "visits" not in clinical.columns
+    assert COMPLETED_TARGET not in clinical.columns
+
+    assert COMPLETED_TARGET in completed.columns
+    assert CLINICAL_TARGET not in completed.columns
+    assert FRONTDESK_TARGET not in completed.columns
+
     assert FRONTDESK_TARGET in frontdesk.columns
     assert CLINICAL_TARGET not in frontdesk.columns
-    assert "visits" not in frontdesk.columns
+    assert COMPLETED_TARGET not in frontdesk.columns
 
 
 def test_recursive_target_forecast_ignores_holdout_outcomes() -> None:
@@ -117,16 +125,40 @@ def test_role_specific_batch_smoke(processed_dir: Path, tmp_path: Path) -> None:
     )
     forecasts = pd.read_csv(result.forecast_path)
     staffing = pd.read_csv(result.staffing_path)
+    monitoring = pd.read_csv(result.monitoring_path)
+
     assert len(forecasts) == 7 * 3
     assert {
         "attended_pred",
         "attended_lower",
         "attended_upper",
+        "completed_pred",
+        "completed_lower",
+        "completed_upper",
         "scheduled_pred",
         "scheduled_lower",
         "scheduled_upper",
+        "daily_capacity",
+        "capacity_pressure",
+        "hybrid_target",
+        "hybrid_clinical_forecast",
+        "hybrid_clinical_upper",
     }.issubset(forecasts.columns)
+
+    expected_pressure = (
+        forecasts["completed_upper"] >= forecasts["daily_capacity"]
+    ).astype(int)
+    assert forecasts["capacity_pressure"].tolist() == expected_pressure.tolist()
+
+    expected_hybrid = forecasts["completed_pred"].where(
+        forecasts["capacity_pressure"] == 0,
+        forecasts["attended_pred"],
+    )
+    assert np.allclose(forecasts["hybrid_clinical_forecast"], expected_hybrid)
+
     assert {
+        "capacity_pressure",
+        "hybrid_target",
         "mean_plan_clinicians",
         "mean_plan_nurses",
         "mean_plan_frontdesk",
@@ -134,5 +166,11 @@ def test_role_specific_batch_smoke(processed_dir: Path, tmp_path: Path) -> None:
         "upper_plan_nurses",
         "upper_plan_frontdesk",
     }.issubset(staffing.columns)
+
+    assert {"clinic", "network"}.issubset(set(monitoring["level"]))
+    assert (monitoring["capacity_pressure_rate"].between(0.0, 1.0)).all()
+    assert (monitoring["attended_demand_selected_rate"].between(0.0, 1.0)).all()
+
     assert (forecasts["attended_lower"] <= forecasts["attended_pred"]).all()
+    assert (forecasts["completed_lower"] <= forecasts["completed_pred"]).all()
     assert (forecasts["scheduled_lower"] <= forecasts["scheduled_pred"]).all()
