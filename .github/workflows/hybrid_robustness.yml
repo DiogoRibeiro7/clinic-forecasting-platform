@@ -1,0 +1,128 @@
+name: Hybrid robustness
+
+on:
+  pull_request:
+    paths:
+      - "src/clinic_forecast/hybrid_robustness.py"
+      - "scripts/run_hybrid_robustness_cell.py"
+      - "scripts/aggregate_hybrid_robustness.py"
+      - "docs/hybrid_capacity_robustness_design.md"
+      - ".github/workflows/hybrid_robustness.yml"
+  workflow_dispatch:
+
+jobs:
+  robustness-cell:
+    name: Seed ${{ matrix.seed }} / capacity ${{ matrix.capacity }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [42, 142, 242, 342]
+        capacity: [0.8, 1.0, 1.2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run frozen robustness cell
+        run: >-
+          poetry run python scripts/run_hybrid_robustness_cell.py
+          --seed ${{ matrix.seed }}
+          --capacity-multiplier ${{ matrix.capacity }}
+          --initial-train-days 1095
+          --horizon 28
+          --folds 4
+          --inner-initial-train-days 730
+          --inner-folds 4
+          --coverage 0.9
+          --estimator hgb
+
+      - name: Record cell provenance
+        run: |
+          cap_label=$(echo "${{ matrix.capacity }}" | tr '.' 'p')
+          cell_dir="reports/outputs/hybrid_capacity_robustness/seed_${{ matrix.seed }}_cap_${cap_label}"
+          {
+            echo "commit_sha=${GITHUB_SHA}"
+            echo "seed=${{ matrix.seed }}"
+            echo "capacity_multiplier=${{ matrix.capacity }}"
+            echo "start_date=2022-01-01"
+            echo "end_date=2025-12-31"
+            echo "n_clinics=12"
+            echo "seasonality_strength=1.0"
+            echo "marketing_strength=1.0"
+            echo "noise_level=1.0"
+            echo "initial_train_days=1095"
+            echo "horizon_days=28"
+            echo "outer_folds=4"
+            echo "inner_initial_train_days=730"
+            echo "inner_folds=4"
+            echo "coverage=0.9"
+            echo "estimator=hgb"
+            echo "python=$(python --version 2>&1)"
+            echo "poetry=$(poetry --version)"
+          } > "${cell_dir}/provenance.txt"
+
+      - name: Upload cell evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: hybrid-robustness-seed-${{ matrix.seed }}-cap-${{ matrix.capacity }}-${{ github.sha }}
+          path: reports/outputs/hybrid_capacity_robustness/seed_*/
+          if-no-files-found: error
+
+  aggregate:
+    name: Aggregate 12-cell robustness evidence
+    needs: robustness-cell
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Download all cell evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: hybrid-robustness-*
+          path: reports/outputs/hybrid_capacity_robustness
+          merge-multiple: true
+
+      - name: Aggregate frozen matrix
+        run: poetry run python scripts/aggregate_hybrid_robustness.py
+
+      - name: Record aggregate provenance
+        run: |
+          output_dir="reports/outputs/hybrid_capacity_robustness_aggregate"
+          {
+            echo "commit_sha=${GITHUB_SHA}"
+            echo "seeds=42,142,242,342"
+            echo "capacity_multipliers=0.8,1.0,1.2"
+            echo "python=$(python --version 2>&1)"
+            echo "poetry=$(poetry --version)"
+          } > "${output_dir}/provenance.txt"
+          poetry run pip freeze > "${output_dir}/requirements.txt"
+
+      - name: Upload aggregate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: hybrid-robustness-aggregate-${{ github.sha }}
+          path: reports/outputs/hybrid_capacity_robustness_aggregate/
+          if-no-files-found: error
