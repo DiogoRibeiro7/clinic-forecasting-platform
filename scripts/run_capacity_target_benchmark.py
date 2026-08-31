@@ -17,8 +17,16 @@ from clinic_forecast.capacity_benchmark import (
 def parse_args() -> argparse.Namespace:
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data", type=Path, default=root / "data" / "processed" / "clinic_daily_usage.csv")
-    parser.add_argument("--output-dir", type=Path, default=root / "reports" / "outputs" / "capacity_target_benchmark")
+    parser.add_argument(
+        "--data",
+        type=Path,
+        default=root / "data" / "processed" / "clinic_daily_usage.csv",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=root / "reports" / "outputs" / "capacity_target_benchmark",
+    )
     parser.add_argument("--initial-train-days", type=int, default=365 * 3)
     parser.add_argument("--horizon", type=int, default=28)
     parser.add_argument("--folds", type=int, default=4)
