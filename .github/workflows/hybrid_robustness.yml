@@ -49,12 +49,13 @@ jobs:
 
       - name: Record cell provenance
         run: |
-          cap_label=$(echo "${{ matrix.capacity }}" | tr '.' 'p')
+          cap_value=$(printf '%.1f' "${{ matrix.capacity }}")
+          cap_label=$(echo "${cap_value}" | tr '.' 'p')
           cell_dir="reports/outputs/hybrid_capacity_robustness/seed_${{ matrix.seed }}_cap_${cap_label}"
           {
             echo "commit_sha=${GITHUB_SHA}"
             echo "seed=${{ matrix.seed }}"
-            echo "capacity_multiplier=${{ matrix.capacity }}"
+            echo "capacity_multiplier=${cap_value}"
             echo "start_date=2022-01-01"
             echo "end_date=2025-12-31"
             echo "n_clinics=12"
