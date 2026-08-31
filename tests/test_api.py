@@ -266,7 +266,11 @@ def test_missing_outputs_returns_503(
     assert "run_batch_forecast" in response.json()["detail"]
 
 
-def test_v2_missing_outputs_returns_503(api_env: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_v2_missing_outputs_returns_503(
+    api_env: None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("CLINIC_FORECAST_OUTPUT_DIR", str(tmp_path / "empty"))
     response = request("GET", "/v2/forecasts", params={"clinic_id": "CLINIC_001"})
     assert response.status_code == 503
