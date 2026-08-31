@@ -1,6 +1,6 @@
 # Roadmap
 
-The original roadmap described the first PoC plan and became stale as later stages were implemented. This version distinguishes **implemented platform capabilities** from the remaining scientific and operational work.
+The original roadmap described the first PoC plan and became stale as later stages were implemented. This version distinguishes implemented platform capabilities from remaining scientific and operational work.
 
 ## Implemented
 
@@ -13,17 +13,20 @@ The original roadmap described the first PoC plan and became stale as later stag
 - [x] Implement pooled global ML forecasting with HGB, XGBoost and LightGBM.
 - [x] Implement optional Nixtla, LSTM and foundation-model wrappers behind a common forecast schema.
 - [x] Implement rolling-origin temporal validation.
-- [x] Implement deployment-matched **fixed-origin recursive** backtesting for lag-based global ML.
+- [x] Implement deployment-matched fixed-origin recursive backtesting for lag-based global ML.
 - [x] Replace the retired one-fold teacher-forced headline benchmark with a multi-fold fixed-origin benchmark.
 - [x] Implement split-conformal intervals calibrated from recursive rolling-fold residuals.
 
-### Decision and hierarchy layers
+### Demand and decision layers
 
 - [x] Implement transparent staffing decision rules and cost scenarios.
 - [x] Implement mean-forecast and interval-upper-bound staffing plans.
 - [x] Implement bottom-up, top-down and middle-out hierarchical reconciliation.
 - [x] Implement no-show modelling as a secondary target.
 - [x] Implement model-based marketing what-if scenarios with explicit non-causal framing.
+- [x] Reconstruct pre-capacity attended demand from scheduled demand, no-shows and cancellations.
+- [x] Quantify unmet demand and capacity censoring explicitly.
+- [x] Add a role-specific batch path: clinicians/nurses use attended demand and front desk uses scheduled appointments.
 
 ### Production-shaped engineering
 
@@ -36,13 +39,19 @@ The original roadmap described the first PoC plan and became stale as later stag
 
 ## Next scientific work
 
-- [ ] Regenerate and commit a fresh multi-fold benchmark artifact after the recursive evaluation fix; do not reuse the retired teacher-forced WAPE values.
+- [ ] Regenerate and commit a fresh multi-fold benchmark artifact after the recursive evaluation fix; do not reuse retired teacher-forced WAPE values.
+- [ ] Add a paired role-specific benchmark comparing attended-demand and completed-visit targets on capacity-censored periods.
 - [ ] Report performance by forecast horizon as well as pooled WAPE and bias.
 - [ ] Add paired uncertainty for model-to-model benchmark differences across rolling origins.
-- [ ] Distinguish latent attended demand from capacity-censored completed visits in the synthetic generator.
-- [ ] Use role-relevant demand targets: scheduled demand for front-desk planning and expected attended demand for clinical staffing.
 - [ ] Evaluate interval coverage by horizon and clinic, not only pooled across calibration residuals.
 - [ ] Add holiday calendars for an explicitly selected deployment geography.
+- [ ] Define how latent attended demand would be identified from real operational data where it is not directly reconstructible.
+
+## Next integration work
+
+- [ ] Decide when the role-specific batch path becomes the default serving path; keep the existing completed-visit API stable until that migration is explicit.
+- [ ] Extend monitoring dashboards with unmet-demand and censoring rates.
+- [ ] Add API fields/endpoints for scheduled-demand and attended-demand forecasts once the serving contract is versioned.
 
 ## Next decision-science work
 
