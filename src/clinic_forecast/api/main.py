@@ -1,17 +1,9 @@
 """FastAPI forecast-serving layer.
 
-Serves the artefacts written by the batch pipeline
-(`scripts/run_batch_forecast.py`): clinic metadata, demand forecasts with
-prediction intervals and staffing recommendations. The API is deliberately
-read-only and file-backed — no database, no in-request model training — so it
-can run anywhere the batch outputs exist.
-
-Configuration via environment variables (useful for tests and Docker):
-
-- ``CLINIC_FORECAST_OUTPUT_DIR``: directory holding ``forecasts/latest.csv``
-  and ``staffing/latest.csv`` (default: ``<repo>/outputs``).
-- ``CLINIC_FORECAST_DATA_DIR``: directory holding ``clinic_metadata.csv``
-  (default: ``<repo>/data/processed``).
+The unversioned routes preserve the legacy completed-visits serving contract.
+Versioned ``/v2`` routes expose the role-specific hybrid decision artefacts
+written by ``scripts/run_role_specific_batch.py``. The API is read-only and
+never trains models or recomputes the hybrid switch inside request handling.
 """
 
 from __future__ import annotations
@@ -29,7 +21,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 app = FastAPI(
     title="Clinic Forecasting Platform",
-    version="0.2.0",
+    version="0.3.0",
     description="Read-only serving API for batch demand forecasts and staffing plans.",
 )
 
@@ -45,7 +37,7 @@ def _data_dir() -> Path:
 def _load_csv(path: Path, what: str, hint: str) -> pd.DataFrame:
     if not path.exists():
         raise HTTPException(status_code=503, detail=f"{what} not available: {path}. {hint}")
-    if what == "Clinic metadata":
+    if what in {"Clinic metadata", "Hybrid monitoring outputs"}:
         return pd.read_csv(path)
     return pd.read_csv(path, parse_dates=["date"])
 
@@ -63,6 +55,15 @@ def _load_latest(kind: str) -> pd.DataFrame:
         _output_dir() / kind / "latest.csv",
         f"{kind.capitalize()} outputs",
         "Run `poetry run python scripts/run_batch_forecast.py` first.",
+    )
+
+
+def _load_role_latest(kind: str) -> pd.DataFrame:
+    what = "Hybrid monitoring outputs" if kind == "monitoring" else f"Role-specific {kind} outputs"
+    return _load_csv(
+        _output_dir() / "role_specific" / kind / "latest.csv",
+        what,
+        "Run `poetry run python scripts/run_role_specific_batch.py` first.",
     )
 
 
@@ -97,11 +98,20 @@ def _filter_window(
 
 
 class HealthResponse(BaseModel):
-    """API health and artefact availability."""
+    """Legacy API health and artefact availability."""
 
     status: str
     forecasts_available: bool
     staffing_available: bool
+
+
+class V2HealthResponse(BaseModel):
+    """Availability of versioned hybrid-serving artefacts."""
+
+    status: str
+    forecasts_available: bool
+    staffing_available: bool
+    hybrid_monitoring_available: bool
 
 
 class ClinicInfo(BaseModel):
@@ -116,7 +126,7 @@ class ClinicInfo(BaseModel):
 
 
 class ForecastPoint(BaseModel):
-    """One clinic-day forecast with prediction interval."""
+    """One legacy clinic-day completed-visits forecast."""
 
     clinic_id: str
     date: date_type
@@ -127,8 +137,30 @@ class ForecastPoint(BaseModel):
     y_upper: float
 
 
+class V2ForecastPoint(BaseModel):
+    """Auditable role-specific forecasts and frozen hybrid target selection."""
+
+    clinic_id: str
+    date: date_type
+    is_open: bool
+    daily_capacity: float
+    attended_pred: float
+    attended_lower: float
+    attended_upper: float
+    completed_pred: float
+    completed_lower: float
+    completed_upper: float
+    scheduled_pred: float
+    scheduled_lower: float
+    scheduled_upper: float
+    capacity_pressure: bool
+    hybrid_target: str
+    hybrid_clinical_forecast: float
+    hybrid_clinical_upper: float
+
+
 class StaffingPoint(BaseModel):
-    """One clinic-day staffing recommendation under both plans."""
+    """One legacy clinic-day staffing recommendation under both plans."""
 
     clinic_id: str
     date: date_type
@@ -138,6 +170,27 @@ class StaffingPoint(BaseModel):
     upper_plan_clinicians: int
     upper_plan_nurses: int
     upper_plan_frontdesk: int
+
+
+class V2StaffingPoint(StaffingPoint):
+    """Hybrid staffing recommendation with target-selection metadata."""
+
+    daily_capacity: float
+    capacity_pressure: bool
+    hybrid_target: str
+
+
+class HybridMonitoringPoint(BaseModel):
+    """Descriptive use of the frozen hybrid switch."""
+
+    level: str
+    group: str
+    n_open_days: int
+    capacity_pressure_days: int
+    capacity_pressure_rate: float
+    attended_demand_selected_days: int
+    attended_demand_selected_rate: float
+    mean_completed_upper_capacity_ratio: float
 
 
 class MarketingScenarioRequest(BaseModel):
@@ -170,19 +223,28 @@ class MarketingScenarioResponse(BaseModel):
     points: list[MarketingScenarioPoint]
 
 
-#: Demand uplift per unit change in log-spend. A documented placeholder
-#: assumption until the model-based scenario module replaces it; the value is
-#: in the range estimated from the historical spend-demand relationship.
 MARKETING_LOG_ELASTICITY = 0.08
 
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    """Return service status and whether batch artefacts are present."""
+    """Return legacy service status and batch artefact availability."""
     return HealthResponse(
         status="ok",
         forecasts_available=(_output_dir() / "forecasts" / "latest.csv").exists(),
         staffing_available=(_output_dir() / "staffing" / "latest.csv").exists(),
+    )
+
+
+@app.get("/v2/health", response_model=V2HealthResponse)
+def v2_health() -> V2HealthResponse:
+    """Return availability of the role-specific hybrid serving artefacts."""
+    root = _output_dir() / "role_specific"
+    return V2HealthResponse(
+        status="ok",
+        forecasts_available=(root / "forecasts" / "latest.csv").exists(),
+        staffing_available=(root / "staffing" / "latest.csv").exists(),
+        hybrid_monitoring_available=(root / "monitoring" / "latest.csv").exists(),
     )
 
 
@@ -209,7 +271,7 @@ def forecasts(
     start_date: Annotated[date_type | None, Query()] = None,
     end_date: Annotated[date_type | None, Query()] = None,
 ) -> list[ForecastPoint]:
-    """Return forecast points with intervals for one clinic."""
+    """Return legacy completed-visits forecasts for one clinic."""
     frame = _filter_window(_load_latest("forecasts"), clinic_id, start_date, end_date)
     return [
         ForecastPoint(
@@ -225,13 +287,47 @@ def forecasts(
     ]
 
 
+@app.get("/v2/forecasts", response_model=list[V2ForecastPoint])
+def v2_forecasts(
+    clinic_id: Annotated[str, Query(description="Clinic identifier, e.g. CLINIC_001")],
+    start_date: Annotated[date_type | None, Query()] = None,
+    end_date: Annotated[date_type | None, Query()] = None,
+) -> list[V2ForecastPoint]:
+    """Return role-specific forecasts and the frozen hybrid decision."""
+    frame = _filter_window(
+        _load_role_latest("forecasts"), clinic_id, start_date, end_date
+    )
+    return [
+        V2ForecastPoint(
+            clinic_id=row["clinic_id"],
+            date=row["date"].date(),
+            is_open=bool(row["is_open"]),
+            daily_capacity=float(row["daily_capacity"]),
+            attended_pred=float(row["attended_pred"]),
+            attended_lower=float(row["attended_lower"]),
+            attended_upper=float(row["attended_upper"]),
+            completed_pred=float(row["completed_pred"]),
+            completed_lower=float(row["completed_lower"]),
+            completed_upper=float(row["completed_upper"]),
+            scheduled_pred=float(row["scheduled_pred"]),
+            scheduled_lower=float(row["scheduled_lower"]),
+            scheduled_upper=float(row["scheduled_upper"]),
+            capacity_pressure=bool(row["capacity_pressure"]),
+            hybrid_target=str(row["hybrid_target"]),
+            hybrid_clinical_forecast=float(row["hybrid_clinical_forecast"]),
+            hybrid_clinical_upper=float(row["hybrid_clinical_upper"]),
+        )
+        for _, row in frame.iterrows()
+    ]
+
+
 @app.get("/staffing", response_model=list[StaffingPoint])
 def staffing(
     clinic_id: Annotated[str, Query(description="Clinic identifier, e.g. CLINIC_001")],
     start_date: Annotated[date_type | None, Query()] = None,
     end_date: Annotated[date_type | None, Query()] = None,
 ) -> list[StaffingPoint]:
-    """Return staffing recommendations (mean and conservative plans)."""
+    """Return legacy staffing recommendations."""
     frame = _filter_window(_load_latest("staffing"), clinic_id, start_date, end_date)
     return [
         StaffingPoint(
@@ -248,13 +344,47 @@ def staffing(
     ]
 
 
+@app.get("/v2/staffing", response_model=list[V2StaffingPoint])
+def v2_staffing(
+    clinic_id: Annotated[str, Query(description="Clinic identifier, e.g. CLINIC_001")],
+    start_date: Annotated[date_type | None, Query()] = None,
+    end_date: Annotated[date_type | None, Query()] = None,
+) -> list[V2StaffingPoint]:
+    """Return hybrid staffing plans with the selected clinical target."""
+    frame = _filter_window(
+        _load_role_latest("staffing"), clinic_id, start_date, end_date
+    )
+    return [
+        V2StaffingPoint(
+            clinic_id=row["clinic_id"],
+            date=row["date"].date(),
+            daily_capacity=float(row["daily_capacity"]),
+            capacity_pressure=bool(row["capacity_pressure"]),
+            hybrid_target=str(row["hybrid_target"]),
+            mean_plan_clinicians=int(row["mean_plan_clinicians"]),
+            mean_plan_nurses=int(row["mean_plan_nurses"]),
+            mean_plan_frontdesk=int(row["mean_plan_frontdesk"]),
+            upper_plan_clinicians=int(row["upper_plan_clinicians"]),
+            upper_plan_nurses=int(row["upper_plan_nurses"]),
+            upper_plan_frontdesk=int(row["upper_plan_frontdesk"]),
+        )
+        for _, row in frame.iterrows()
+    ]
+
+
+@app.get("/v2/hybrid-monitoring", response_model=list[HybridMonitoringPoint])
+def v2_hybrid_monitoring() -> list[HybridMonitoringPoint]:
+    """Return descriptive switch-use monitoring for the latest role-specific run."""
+    frame = _load_role_latest("monitoring")
+    return [HybridMonitoringPoint(**row.to_dict()) for _, row in frame.iterrows()]
+
+
 @app.post("/scenario/marketing", response_model=MarketingScenarioResponse)
 def marketing_scenario(request: MarketingScenarioRequest) -> MarketingScenarioResponse:
     """Estimate forecast impact of scaling planned marketing spend.
 
-    Applies a documented log-elasticity assumption to the latest baseline
-    forecasts. This is model-based what-if analysis under an explicit
-    assumption, not a causal claim about marketing effectiveness.
+    Applies a documented log-elasticity assumption to the latest legacy
+    baseline forecasts. This remains a model-based what-if, not a causal claim.
     """
     import math
 
