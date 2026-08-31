@@ -46,21 +46,36 @@ The model **must not** be used for:
 
 ## Forecast targets
 
-- **Primary:** completed visits per clinic per day.
+- **Current primary implementation:** completed visits per clinic per day.
 - **Secondary:** scheduled appointments and the attrition rate (no-shows +
-  same-day cancellations), enabling staffing of front-desk to *scheduled* and
-  clinicians to *expected completed* demand.
+  same-day cancellations).
+
+Completed visits are capped by clinic capacity in the synthetic generator.
+That makes them a capacity-censored proxy for latent attended demand on busy
+days. The roadmap therefore treats separation of latent attended demand from
+observed completed visits as required work before making stronger
+capacity-planning claims or assigning role-specific demand targets.
 
 ## Evaluation
 
-- **Protocol:** rolling-origin backtesting (`RollingOriginSplitter`); training
-  always ends strictly before each 28-day test window.
+- **Protocol:** rolling-origin, fixed-origin backtesting
+  (`RollingOriginSplitter`); training always ends strictly before each test
+  window.
+- **Information set:** primary multi-day evaluation forecasts the complete
+  holdout horizon from the fold origin. Lag-based global ML is recursive;
+  realised targets inside the test window are not used as future lag inputs.
 - **Primary metric:** WAPE (robust to closure zeros, volume-weighted). Bias is
   tracked separately because staffing costs are asymmetric. MAPE is reported
-  but not relied upon (undefined on zero-visit days).
-- **Bar to clear:** the seasonal-naive baseline, on every fold.
-- **Uncertainty:** split conformal intervals, evaluated by realised coverage
-  and width on held-out folds.
+  but not relied upon.
+- **Baseline:** seasonal naive remains the minimum reference model. Production
+  model selection must use the corrected multi-fold benchmark; historical
+  one-fold teacher-forced global-ML WAPE values are retired.
+- **Uncertainty:** split conformal intervals are calibrated from recursive
+  rolling-fold residuals produced by the same forecast mechanism used in the
+  batch pipeline.
+- **Coverage claim:** nominal coverage is a target, not a guarantee. A fresh
+  post-fix evaluation must report realised coverage and interval width by
+  clinic and, where sample size permits, by forecast horizon.
 
 ## Known failure modes
 
@@ -68,9 +83,9 @@ The model **must not** be used for:
   model anticipates their onset from the demand series alone. These dominate
   residual error.
 - **Capacity censoring:** on days a clinic hits capacity, recorded visits
-  understate true demand, biasing peak-day forecasts low.
+  understate latent attended demand, biasing peak-day forecasts low.
 - **Recursive horizon decay:** deployment-mode multi-step forecasts feed
-  predictions back as lags; error grows with horizon.
+  predictions back as lags; error can grow with horizon.
 - **Cold-start clinics:** clinics with little history rely on metadata and
   cross-clinic structure; expect wider intervals and weaker accuracy.
 - **Plan-vs-actual marketing:** if executed spend diverges from the assumed
@@ -81,19 +96,18 @@ The model **must not** be used for:
 See [`docs/operational_risk.md`](../docs/operational_risk.md) for the full
 risk register. The headline operational risk is **systematic under-forecasting
 causing chronic understaffing** — costlier than the equivalent overstaffing —
-which is why bias is monitored per clinic and conservative (interval
-upper-bound) staffing is offered.
+which is why bias is monitored per clinic and conservative interval-upper-bound
+staffing is offered.
 
 ## Bias and fairness (clinic / region level)
 
 - This is an **operational** model: "fairness" here means no clinic or region
   is *systematically* worse-served than others, not a protected-attribute
   analysis (no demographic data is used or available).
-- Per-clinic WAPE spread is reported in every evaluation; small or volatile
-  clinics carry higher relative error. Monitoring per-clinic bias guards
-  against one region quietly absorbing most of the forecast error.
+- Per-clinic WAPE spread should be reported in every formal evaluation; small
+  or volatile clinics generally carry higher relative error.
 - Volume-weighted network metrics can hide poor service to small clinics;
-  per-clinic metrics are always reported alongside.
+  per-clinic metrics must be reported alongside network summaries.
 
 ## Human review process
 
@@ -114,5 +128,5 @@ Implemented in `clinic_forecast.monitoring` with thresholds in
   reference window.
 - **Retrain** on volume-shift + WAPE-degradation agreement for a clinic, or on
   persistent bias across two windows; **recalibrate intervals** alongside any
-  retraining (their residuals are stale by definition).
+  retraining.
 - **Fix the input, not the model**, on a marketing-spend shift alone.
