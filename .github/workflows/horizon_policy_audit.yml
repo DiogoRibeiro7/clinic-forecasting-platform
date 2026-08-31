@@ -1,0 +1,62 @@
+name: Horizon policy audit
+
+on:
+  pull_request:
+    paths:
+      - "src/clinic_forecast/horizon_policy_audit.py"
+      - "scripts/run_horizon_policy_audit.py"
+      - "tests/test_horizon_policy_audit.py"
+      - "docs/horizon_policy_uncertainty_design.md"
+      - ".github/workflows/horizon_policy_audit.yml"
+  workflow_dispatch:
+
+jobs:
+  horizon-policy-evidence:
+    name: Horizon-resolved policy evidence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Generate frozen synthetic data
+        run: poetry run python scripts/generate_data.py --seed 42
+
+      - name: Run frozen horizon policy audit
+        run: poetry run python scripts/run_horizon_policy_audit.py
+
+      - name: Record provenance
+        run: |
+          output_dir="reports/outputs/horizon_policy_audit"
+          {
+            echo "commit_sha=${GITHUB_SHA}"
+            echo "seed=42"
+            echo "initial_train_days=1095"
+            echo "horizon_days=28"
+            echo "step_days=28"
+            echo "outer_origins=13"
+            echo "inner_initial_train_days=730"
+            echo "inner_folds=4"
+            echo "coverage=0.9"
+            echo "estimator=hgb"
+            echo "python=$(python --version 2>&1)"
+            echo "poetry=$(poetry --version)"
+          } > "${output_dir}/provenance.txt"
+          poetry run pip freeze > "${output_dir}/requirements.txt"
+
+      - name: Upload horizon audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: horizon-policy-audit-${{ github.sha }}
+          path: reports/outputs/horizon_policy_audit/
+          if-no-files-found: error
