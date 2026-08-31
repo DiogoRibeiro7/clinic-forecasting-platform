@@ -1,0 +1,8 @@
+github_actions_run=33419008858
+evidence_job=Clinical staffing optimiser evidence
+pr_head_sha=21f0ecfb354103ac74b3a0e963a414c6fad97e1d
+workflow_merge_sha=c16b5b7bcf34a998b259cf5460f23322ba7487eb
+artifact_id=9768192669
+artifact_sha256=d73d8ba551cd8c2c1ed1e05192cee9f0981fba47688d046cd3e54c7108c4a3db
+python=Python 3.11.16
+poetry=Poetry 2.4.2
