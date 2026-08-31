@@ -107,3 +107,49 @@ jobs:
           name: capacity-target-benchmark-${{ github.sha }}
           path: reports/outputs/capacity_target_benchmark/
           if-no-files-found: error
+
+  staffing-decision-evidence:
+    name: Staffing decision benchmark evidence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Generate frozen synthetic data
+        run: poetry run python scripts/generate_data.py
+
+      - name: Run paired staffing decision benchmark
+        run: >-
+          poetry run python scripts/run_staffing_decision_benchmark.py
+          --initial-train-days 1095
+          --horizon 28
+          --folds 4
+          --estimator hgb
+
+      - name: Record provenance
+        run: |
+          mkdir -p reports/outputs/staffing_decision_benchmark
+          {
+            echo "commit_sha=${GITHUB_SHA}"
+            echo "python=$(python --version 2>&1)"
+            echo "poetry=$(poetry --version)"
+          } > reports/outputs/staffing_decision_benchmark/provenance.txt
+          poetry run pip freeze > reports/outputs/staffing_decision_benchmark/requirements.txt
+
+      - name: Upload decision evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: staffing-decision-benchmark-${{ github.sha }}
+          path: reports/outputs/staffing_decision_benchmark/
+          if-no-files-found: error
