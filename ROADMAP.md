@@ -27,6 +27,7 @@ The original roadmap described the first PoC plan and became stale as later stag
 - [x] Reconstruct pre-capacity attended demand from scheduled demand, no-shows and cancellations.
 - [x] Quantify unmet demand and capacity censoring explicitly.
 - [x] Add a role-specific batch path: clinicians/nurses use attended demand and front desk uses scheduled appointments.
+- [x] Add a paired fixed-origin benchmark comparing attended-demand and completed-visit targets against attended demand, including censored-period WAPE, bias, mean shortfall and underforecast rate.
 
 ### Production-shaped engineering
 
@@ -40,7 +41,7 @@ The original roadmap described the first PoC plan and became stale as later stag
 ## Next scientific work
 
 - [ ] Regenerate and commit a fresh multi-fold benchmark artifact after the recursive evaluation fix; do not reuse retired teacher-forced WAPE values.
-- [ ] Add a paired role-specific benchmark comparing attended-demand and completed-visit targets on capacity-censored periods.
+- [ ] Run and commit the paired capacity-target benchmark evidence; use its censored-period results to decide whether role-specific forecasting should replace completed-visit staffing.
 - [ ] Report performance by forecast horizon as well as pooled WAPE and bias.
 - [ ] Add paired uncertainty for model-to-model benchmark differences across rolling origins.
 - [ ] Evaluate interval coverage by horizon and clinic, not only pooled across calibration residuals.
