@@ -53,7 +53,10 @@ def test_assign_horizon_index_requires_full_13_by_28_shape() -> None:
     assert assigned["fold"].nunique() == EXPECTED_OUTER_ORIGINS
     assert assigned.groupby("fold")["horizon"].nunique().eq(EXPECTED_HORIZONS).all()
 
-    truncated = decisions[~((decisions["fold"] == 13) & (decisions["date"] == decisions["date"].max()))]
+    missing_last_date = (decisions["fold"] == 13) & (
+        decisions["date"] == decisions["date"].max()
+    )
+    truncated = decisions[~missing_last_date]
     with pytest.raises(ValueError, match="13 origins with exactly 28 horizons"):
         assign_horizon_index(truncated)
 
