@@ -3,7 +3,7 @@
 One call runs the full chain the notebooks develop interactively:
 
 1. Load the processed contract CSVs and validate them.
-2. Calibrate per-clinic conformal intervals on rolling validation folds.
+2. Calibrate per-clinic conformal intervals on deployment-matched rolling folds.
 3. Fit the global ML model on all history.
 4. Build a future frame (calendar, opening days, carried-forward marketing
    plan) and forecast the horizon recursively.
@@ -23,6 +23,7 @@ from typing import Literal
 
 import pandas as pd
 
+from clinic_forecast.backtesting import recursive_global_ml_forecast
 from clinic_forecast.contracts import validate_clinic_metadata, validate_clinic_usage
 from clinic_forecast.data import PUBLIC_HOLIDAYS
 from clinic_forecast.intervals import ConformalIntervals
@@ -51,9 +52,9 @@ class BatchForecastConfig:
     data_dir: Path
     output_dir: Path
     horizon_days: int = 28
-    estimator: Literal["hgb", "xgboost"] = "hgb"
+    estimator: Literal["hgb", "xgboost", "lightgbm"] = "hgb"
     coverage: float = 0.9
-    calibration_folds: int = 2
+    calibration_folds: int = 4
     initial_train_days: int = 365
     staffing_config: Path | None = None
 
@@ -119,31 +120,32 @@ def make_future_frame(
 def _calibrate_intervals(
     usage: pd.DataFrame, config: BatchForecastConfig
 ) -> tuple[ConformalIntervals, pd.DataFrame]:
-    """Fit conformal intervals on rolling-fold out-of-sample residuals.
+    """Fit conformal intervals on deployment-matched rolling residuals.
 
-    Returns the fitted intervals plus the calibration frame, whose pooled
-    metrics describe out-of-sample model quality for the registry.
+    Every fold forecasts its complete holdout horizon recursively from the
+    fold origin. Realised targets inside the holdout are never used to build
+    lag features. The resulting residual distribution therefore matches the
+    batch deployment mechanism instead of a teacher-forced one-step process.
     """
     splitter = RollingOriginSplitter(
         initial_train_days=config.initial_train_days,
         horizon_days=config.horizon_days,
         max_folds=config.calibration_folds,
     )
-    calibration_frames = []
+    calibration_frames: list[pd.DataFrame] = []
     for fold_train, fold_test, fold in splitter.split(usage):
         logger.info("Calibration fold %s: train to %s", fold.fold_id, fold.train_end.date())
-        fold_model = GlobalMLForecaster(estimator=config.estimator).fit(fold_train)
-        combined = pd.concat([fold_train, fold_test], ignore_index=True).sort_values(
-            ["clinic_id", "date"]
+        predictions = recursive_global_ml_forecast(
+            train=fold_train,
+            test=fold_test,
+            estimator=config.estimator,
         )
-        predictions = fold_model.predict_known_future(combined)
-        predictions = predictions[predictions["date"] >= fold.test_start]
         calibration_frames.append(
             fold_test.merge(
                 predictions[["clinic_id", "date", "forecast"]],
                 on=["clinic_id", "date"],
                 how="inner",
-            )
+            ).assign(fold=fold.fold_id)
         )
     calibration = pd.concat(calibration_frames, ignore_index=True)
     intervals = ConformalIntervals(coverage=config.coverage, group_col="clinic_id").fit(
@@ -169,7 +171,7 @@ def run_batch_forecast(config: BatchForecastConfig) -> BatchForecastResult:
     validate_clinic_metadata(metadata)
 
     logger.info(
-        "Calibrating %.0f%% conformal intervals on %s folds",
+        "Calibrating %.0f%% conformal intervals on %s fixed-origin folds",
         config.coverage * 100,
         config.calibration_folds,
     )
@@ -203,14 +205,19 @@ def run_batch_forecast(config: BatchForecastConfig) -> BatchForecastResult:
     no_buffer = StaffingRules(
         **{
             **rules.__dict__,
-            "buffer_ratio": 0.0,  # the interval replaces the flat buffer
+            "buffer_ratio": 0.0,
         }
     )
     mean_plan = recommend_staffing(forecast, forecast_col="y_pred", rules=no_buffer)
     upper_plan = recommend_staffing(forecast, forecast_col="y_upper", rules=no_buffer)
     staffing = mean_plan[
-        ["clinic_id", "date", "recommended_clinicians", "recommended_nurses",
-         "recommended_frontdesk"]
+        [
+            "clinic_id",
+            "date",
+            "recommended_clinicians",
+            "recommended_nurses",
+            "recommended_frontdesk",
+        ]
     ].rename(columns=lambda c: c.replace("recommended_", "mean_plan_"))
     for col in ["recommended_clinicians", "recommended_nurses", "recommended_frontdesk"]:
         staffing[col.replace("recommended_", "upper_plan_")] = upper_plan[col]
@@ -247,14 +254,18 @@ def run_batch_forecast(config: BatchForecastConfig) -> BatchForecastResult:
             "interval_coverage_target": config.coverage,
         },
         features=model.feature_columns_ or [],
-        params={"estimator": config.estimator, "calibration_folds": config.calibration_folds},
+        params={
+            "estimator": config.estimator,
+            "calibration_folds": config.calibration_folds,
+            "calibration_mode": "fixed_origin_recursive",
+        },
         artifact_paths={
             "forecasts": str(forecast_path),
             "staffing": str(staffing_path),
         },
     )
     logger.info(
-        "Registered %s v%s (calibration WAPE %.1f%%)",
+        "Registered %s v%s (recursive calibration WAPE %.1f%%)",
         record.name,
         record.version,
         calibration_metrics.wape,
