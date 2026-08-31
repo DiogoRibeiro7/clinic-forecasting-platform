@@ -1,0 +1,13 @@
+commit_sha=8f75c612d0582c72a0e15596f1281a55b4d44cb5
+python=Python 3.11.16
+poetry=Poetry (version 2.4.2)
+workflow_run=33395224808
+artifact_id=9759090178
+artifact_sha256=e61481e88dfe89d03183d9a3a606bf069277b39366395e285b08381b4381a283
+outer_initial_train_days=1095
+outer_horizon_days=28
+outer_folds=4
+inner_initial_train_days=730
+inner_folds=4
+coverage=0.9
+estimator=hgb
