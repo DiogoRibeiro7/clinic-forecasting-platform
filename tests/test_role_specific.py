@@ -33,12 +33,13 @@ def test_capacity_targets_match_generator_funnel() -> None:
         frame["scheduled_appointments"]
         - frame["no_show_count"]
         - frame["same_day_cancellations"]
-    )
-    pd.testing.assert_series_equal(frame["attended_demand"], expected_attended.astype(float))
-    pd.testing.assert_series_equal(
-        frame["unmet_demand"],
-        (frame["attended_demand"] - frame["visits"]).astype(float),
-    )
+    ).astype(float).rename("attended_demand")
+    expected_unmet = (
+        frame["attended_demand"] - frame["visits"]
+    ).astype(float).rename("unmet_demand")
+
+    pd.testing.assert_series_equal(frame["attended_demand"], expected_attended)
+    pd.testing.assert_series_equal(frame["unmet_demand"], expected_unmet)
     assert (
         frame["capacity_censored"]
         == (frame["unmet_demand"] > 0).astype(int)
