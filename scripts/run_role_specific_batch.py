@@ -16,7 +16,11 @@ def parse_args() -> argparse.Namespace:
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--horizon", type=int, default=28)
-    parser.add_argument("--estimator", choices=["hgb", "xgboost", "lightgbm"], default="hgb")
+    parser.add_argument(
+        "--estimator",
+        choices=["hgb", "xgboost", "lightgbm"],
+        default="hgb",
+    )
     parser.add_argument("--coverage", type=float, default=0.9)
     parser.add_argument("--calibration-folds", type=int, default=4)
     parser.add_argument("--initial-train-days", type=int, default=365)
@@ -51,6 +55,7 @@ def main() -> None:
     )
     print(f"Role-specific forecasts: {result.forecast_path}")
     print(f"Role-specific staffing:  {result.staffing_path}")
+    print(f"Hybrid monitoring:       {result.monitoring_path}")
 
 
 if __name__ == "__main__":
