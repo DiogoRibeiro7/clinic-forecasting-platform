@@ -45,7 +45,11 @@ def _build_policy(
 ) -> pd.DataFrame:
     no_buffer = StaffingRules(**{**rules.__dict__, "buffer_ratio": 0.0})
     clinical = recommend_staffing(paired, forecast_col=clinical_forecast_col, rules=no_buffer)
-    frontdesk = recommend_staffing(paired, forecast_col="forecast_scheduled_target", rules=no_buffer)
+    frontdesk = recommend_staffing(
+        paired,
+        forecast_col="forecast_scheduled_target",
+        rules=no_buffer,
+    )
     plan = paired.copy()
     plan["recommended_clinicians"] = clinical["recommended_clinicians"]
     plan["recommended_nurses"] = clinical["recommended_nurses"]
