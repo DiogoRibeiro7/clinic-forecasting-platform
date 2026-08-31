@@ -99,7 +99,7 @@ jobs:
             echo "python=$(python --version 2>&1)"
             echo "poetry=$(poetry --version)"
           } > reports/outputs/capacity_target_benchmark/provenance.txt
-          poetry export --format requirements.txt --without-hashes > reports/outputs/capacity_target_benchmark/requirements.txt
+          poetry run pip freeze > reports/outputs/capacity_target_benchmark/requirements.txt
 
       - name: Upload benchmark evidence
         uses: actions/upload-artifact@v4
