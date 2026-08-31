@@ -1,9 +1,8 @@
 """Role-specific forecasting and staffing helpers.
 
-Clinical staff should be sized from demand that would attend if capacity were
-unconstrained. Front-desk workload starts earlier in the funnel, so it is sized
-from scheduled appointments. Both targets are evaluated with the same
-fixed-origin recursive contract as the production forecast path.
+Clinical staffing may use either attended demand or completed visits. Front-desk
+workload starts earlier in the funnel, so it is sized from scheduled
+appointments. All targets use the same fixed-origin recursive forecast contract.
 """
 
 from __future__ import annotations
@@ -21,6 +20,7 @@ from clinic_forecast.validation import RollingOriginSplitter
 
 Estimator = Literal["hgb", "xgboost", "lightgbm"]
 CLINICAL_TARGET = "attended_demand"
+COMPLETED_TARGET = "visits"
 FRONTDESK_TARGET = "scheduled_appointments"
 
 SAME_DAY_OUTCOMES: frozenset[str] = frozenset(
@@ -43,14 +43,22 @@ def prepare_target_history(data: pd.DataFrame, target_col: str) -> pd.DataFrame:
     frame = add_capacity_targets(data)
     if target_col not in frame.columns:
         raise ValueError(f"Unknown role-specific target column: {target_col}")
-    drop = [column for column in SAME_DAY_OUTCOMES if column != target_col and column in frame]
+    drop = [
+        column
+        for column in SAME_DAY_OUTCOMES
+        if column != target_col and column in frame
+    ]
     return frame.drop(columns=drop).copy()
 
 
 def prepare_target_future(data: pd.DataFrame, target_col: str) -> pd.DataFrame:
     """Return a future information set with all realised outcomes removed."""
     frame = add_capacity_targets(data)
-    drop = [column for column in SAME_DAY_OUTCOMES.union({target_col}) if column in frame]
+    drop = [
+        column
+        for column in SAME_DAY_OUTCOMES.union({target_col})
+        if column in frame
+    ]
     return frame.drop(columns=drop).copy()
 
 
@@ -116,56 +124,92 @@ class RoleSpecificForecasts:
 
     frame: pd.DataFrame
     clinical_model_name: str
+    completed_model_name: str
     frontdesk_model_name: str
+
+
+def _forecast_target(
+    history: pd.DataFrame,
+    future: pd.DataFrame,
+    target_col: str,
+    intervals: ConformalIntervals,
+    estimator: Estimator,
+    prefix: str,
+    model_col: str,
+) -> pd.DataFrame:
+    """Fit one target model and attach its conformal interval."""
+    target_history = prepare_target_history(history, target_col)
+    model = GlobalMLForecaster(target_col=target_col, estimator=estimator).fit(
+        target_history
+    )
+    target_future = future.drop(
+        columns=[column for column in SAME_DAY_OUTCOMES if column in future.columns],
+        errors="ignore",
+    )
+    forecast = model.forecast(target_history, target_future)
+    return intervals.apply(forecast).rename(
+        columns={
+            "forecast": f"{prefix}_forecast",
+            "y_pred": f"{prefix}_pred",
+            "y_lower": f"{prefix}_lower",
+            "y_upper": f"{prefix}_upper",
+            "model": model_col,
+        }
+    )
 
 
 def forecast_role_targets(
     history: pd.DataFrame,
     future: pd.DataFrame,
     clinical_intervals: ConformalIntervals,
+    completed_intervals: ConformalIntervals,
     frontdesk_intervals: ConformalIntervals,
     estimator: Estimator = "hgb",
 ) -> RoleSpecificForecasts:
-    """Forecast attended and scheduled demand from the same fixed origin."""
-    clinical_history = prepare_target_history(history, CLINICAL_TARGET)
-    frontdesk_history = prepare_target_history(history, FRONTDESK_TARGET)
-
-    clinical_model = GlobalMLForecaster(
-        target_col=CLINICAL_TARGET,
-        estimator=estimator,
-    ).fit(clinical_history)
-    frontdesk_model = GlobalMLForecaster(
-        target_col=FRONTDESK_TARGET,
-        estimator=estimator,
-    ).fit(frontdesk_history)
-
-    clinical_future = future.drop(
-        columns=[column for column in SAME_DAY_OUTCOMES if column in future.columns],
-        errors="ignore",
+    """Forecast attended, completed and scheduled demand from one fixed origin."""
+    clinical = _forecast_target(
+        history,
+        future,
+        CLINICAL_TARGET,
+        clinical_intervals,
+        estimator,
+        "attended",
+        "clinical_model",
     )
-    frontdesk_future = clinical_future.copy()
+    completed = _forecast_target(
+        history,
+        future,
+        COMPLETED_TARGET,
+        completed_intervals,
+        estimator,
+        "completed",
+        "completed_model",
+    )
+    frontdesk = _forecast_target(
+        history,
+        future,
+        FRONTDESK_TARGET,
+        frontdesk_intervals,
+        estimator,
+        "scheduled",
+        "frontdesk_model",
+    )
 
-    clinical = clinical_model.forecast(clinical_history, clinical_future)
-    clinical = clinical_intervals.apply(clinical).rename(
-        columns={
-            "forecast": "attended_forecast",
-            "y_pred": "attended_pred",
-            "y_lower": "attended_lower",
-            "y_upper": "attended_upper",
-            "model": "clinical_model",
-        }
-    )
-    frontdesk = frontdesk_model.forecast(frontdesk_history, frontdesk_future)
-    frontdesk = frontdesk_intervals.apply(frontdesk).rename(
-        columns={
-            "forecast": "scheduled_forecast",
-            "y_pred": "scheduled_pred",
-            "y_lower": "scheduled_lower",
-            "y_upper": "scheduled_upper",
-            "model": "frontdesk_model",
-        }
-    )
     merged = clinical.merge(
+        completed[
+            [
+                "clinic_id",
+                "date",
+                "completed_model",
+                "completed_forecast",
+                "completed_pred",
+                "completed_lower",
+                "completed_upper",
+            ]
+        ],
+        on=["clinic_id", "date"],
+        how="inner",
+    ).merge(
         frontdesk[
             [
                 "clinic_id",
@@ -183,6 +227,7 @@ def forecast_role_targets(
     return RoleSpecificForecasts(
         frame=merged,
         clinical_model_name=f"global_ml_{estimator}_{CLINICAL_TARGET}",
+        completed_model_name=f"global_ml_{estimator}_{COMPLETED_TARGET}",
         frontdesk_model_name=f"global_ml_{estimator}_{FRONTDESK_TARGET}",
     )
 
@@ -193,13 +238,21 @@ def recommend_role_specific_staffing(
     frontdesk_col: str = "scheduled_pred",
     rules: StaffingRules | None = None,
 ) -> pd.DataFrame:
-    """Size clinical roles from attended demand and front desk from scheduled demand."""
+    """Size clinical roles and front desk from their selected demand targets."""
     missing = {clinical_col, frontdesk_col}.difference(forecasts.columns)
     if missing:
         raise ValueError(f"Role-specific forecasts missing columns: {sorted(missing)}")
 
-    clinical_plan = recommend_staffing(forecasts, forecast_col=clinical_col, rules=rules)
-    frontdesk_plan = recommend_staffing(forecasts, forecast_col=frontdesk_col, rules=rules)
+    clinical_plan = recommend_staffing(
+        forecasts,
+        forecast_col=clinical_col,
+        rules=rules,
+    )
+    frontdesk_plan = recommend_staffing(
+        forecasts,
+        forecast_col=frontdesk_col,
+        rules=rules,
+    )
     output = forecasts.copy()
     output["recommended_clinicians"] = clinical_plan["recommended_clinicians"]
     output["recommended_nurses"] = clinical_plan["recommended_nurses"]
@@ -209,6 +262,7 @@ def recommend_role_specific_staffing(
 
 __all__ = [
     "CLINICAL_TARGET",
+    "COMPLETED_TARGET",
     "FRONTDESK_TARGET",
     "RoleSpecificForecasts",
     "SAME_DAY_OUTCOMES",
