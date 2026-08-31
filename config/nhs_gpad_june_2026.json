@@ -1,0 +1,37 @@
+{
+  "source": {
+    "publication": "Appointments in General Practice, June 2026",
+    "publisher": "NHS England",
+    "publication_date": "2026-07-30",
+    "archive_name": "Appointments_GP_Daily_CSV_Jun_26.zip",
+    "archive_url": "https://files.digital.nhs.uk/C9/342751/Appointments_GP_Daily_CSV_Jun_26.zip",
+    "expected_sha256": null,
+    "date_start": "2024-01-01",
+    "date_end": "2026-06-30",
+    "licence": "Open Government Licence v3.0",
+    "attribution": "Contains NHS England information licensed under the Open Government Licence v3.0."
+  },
+  "csv_encoding": "utf-8-sig",
+  "date_formats": ["%Y-%m-%d", "%d-%b-%Y", "%d-%b-%y", "%d/%m/%Y"],
+  "required_fields": {
+    "appointment_date": ["Appointment_Date", "APPOINTMENT_DATE", "appointment_date", "APPT_DATE"],
+    "appointment_status": ["Appointment_Status", "APPOINTMENT_STATUS", "appointment_status", "APPT_STATUS"],
+    "count_of_appointments": ["Count_Of_Appointments", "COUNT_OF_APPOINTMENTS", "count_of_appointments"],
+    "sub_icb_code": ["SUB_ICB_LOCATION_CODE", "SUB_ICB_LOC_CODE", "Sub_ICB_Location_Code", "sub_icb_location_code", "SUB_ICB_ONS_CODE", "sub_icb_ons_code"],
+    "sub_icb_name": ["SUB_ICB_LOCATION_NAME", "Sub_ICB_Location_Name", "sub_icb_location_name"]
+  },
+  "optional_fields": {
+    "icb_code": ["ICB_CODE", "ICB_ONS_CODE", "icb_code", "icb_ons_code"],
+    "icb_name": ["ICB_NAME", "icb_name"],
+    "region_code": ["REGION_CODE", "REGION_ONS_CODE", "region_code", "region_ons_code"],
+    "region_name": ["REGION_NAME", "region_name"],
+    "hcp_type": ["HCP_Type", "HCP_TYPE", "hcp_type"],
+    "appointment_mode": ["Appointment_Mode", "APPOINTMENT_MODE", "appointment_mode"],
+    "booking_lead_time": ["Time_Between_Book_And_Appt", "TIME_BETWEEN_BOOK_AND_APPT", "time_between_book_and_appt", "TIME_BETWEEN_BOOKING_AND_APPOINTMENT"]
+  },
+  "status_map": {
+    "attended": ["attended"],
+    "did_not_attend": ["did not attend", "did_not_attend", "dna"],
+    "unknown": ["unknown"]
+  }
+}
