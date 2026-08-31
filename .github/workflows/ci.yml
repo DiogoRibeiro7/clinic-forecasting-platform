@@ -202,3 +202,52 @@ jobs:
           name: hybrid-policy-benchmark-${{ github.sha }}
           path: reports/outputs/hybrid_policy_benchmark/
           if-no-files-found: error
+
+  optimizer-evidence:
+    name: Clinical staffing optimiser evidence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Generate frozen synthetic data
+        run: poetry run python scripts/generate_data.py
+
+      - name: Run frozen optimiser benchmark
+        run: >-
+          poetry run python scripts/run_optimizer_benchmark.py
+          --initial-train-days 1095
+          --horizon 28
+          --folds 4
+          --inner-initial-train-days 730
+          --inner-folds 4
+          --coverage 0.9
+          --estimator hgb
+
+      - name: Record provenance
+        run: |
+          mkdir -p reports/outputs/optimizer_benchmark
+          {
+            echo "commit_sha=${GITHUB_SHA}"
+            echo "python=$(python --version 2>&1)"
+            echo "poetry=$(poetry --version)"
+          } > reports/outputs/optimizer_benchmark/provenance.txt
+          poetry run pip freeze > reports/outputs/optimizer_benchmark/requirements.txt
+
+      - name: Upload optimiser evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: optimizer-benchmark-${{ github.sha }}
+          path: reports/outputs/optimizer_benchmark/
+          if-no-files-found: error
