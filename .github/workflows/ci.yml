@@ -61,3 +61,49 @@ jobs:
           notebooks/00_business_problem_and_poc_design.ipynb
           notebooks/01_synthetic_healthcare_data_generation.ipynb
           notebooks/06_staffing_optimization_and_decision_layer.ipynb
+
+  capacity-target-evidence:
+    name: Capacity target benchmark evidence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Generate frozen synthetic data
+        run: poetry run python scripts/generate_data.py
+
+      - name: Run paired capacity-target benchmark
+        run: >-
+          poetry run python scripts/run_capacity_target_benchmark.py
+          --initial-train-days 1095
+          --horizon 28
+          --folds 4
+          --estimator hgb
+
+      - name: Record provenance
+        run: |
+          mkdir -p reports/outputs/capacity_target_benchmark
+          {
+            echo "commit_sha=${GITHUB_SHA}"
+            echo "python=$(python --version 2>&1)"
+            echo "poetry=$(poetry --version)"
+          } > reports/outputs/capacity_target_benchmark/provenance.txt
+          poetry run pip freeze > reports/outputs/capacity_target_benchmark/requirements.txt
+
+      - name: Upload benchmark evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: capacity-target-benchmark-${{ github.sha }}
+          path: reports/outputs/capacity_target_benchmark/
+          if-no-files-found: error
