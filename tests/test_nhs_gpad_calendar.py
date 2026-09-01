@@ -7,8 +7,8 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import pandas as pd
 import pytest
 
-from clinic_forecast.nhs_gpad_calendar import run_gpad_calendar_support_audit
 from clinic_forecast.nhs_gpad import sha256_file
+from clinic_forecast.nhs_gpad_calendar import run_gpad_calendar_support_audit
 
 
 def _write_fixture(tmp_path: Path) -> tuple[Path, Path]:
