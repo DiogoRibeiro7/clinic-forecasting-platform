@@ -37,6 +37,27 @@ def sha256_file(path: str | Path) -> str:
     return digest.hexdigest()
 
 
+def config_string_list(config: dict[str, object], key: str) -> list[str]:
+    """Read a required list-valued GPAD config entry as strings."""
+    raw = config[key]
+    if not isinstance(raw, list):
+        raise TypeError(f"{key} must be a list.")
+    return [str(value) for value in raw]
+
+
+def build_gpad_status_map(config: dict[str, object]) -> dict[str, list[str]]:
+    """Build the canonical status map with normalized explicit aliases."""
+    raw = config["status_map"]
+    if not isinstance(raw, dict):
+        raise TypeError("status_map must be a mapping.")
+    output: dict[str, list[str]] = {}
+    for key, aliases in raw.items():
+        if not isinstance(aliases, list):
+            raise TypeError(f"status_map aliases for {key!r} must be a list.")
+        output[str(key)] = [str(alias).strip().casefold() for alias in aliases]
+    return output
+
+
 def _resolve_alias(columns: list[str], aliases: list[str]) -> str | None:
     matches = [alias for alias in aliases if alias in columns]
     if len(matches) > 1:
@@ -75,7 +96,8 @@ def resolve_schema(columns: list[str], config: dict[str, object]) -> dict[str, s
     return resolved
 
 
-def _parse_dates(values: pd.Series, formats: list[str]) -> pd.Series:
+def parse_gpad_dates(values: pd.Series, formats: list[str]) -> pd.Series:
+    """Parse GPAD dates using only the explicitly allowed date formats."""
     output = pd.Series(pd.NaT, index=values.index, dtype="datetime64[ns]")
     text = values.astype("string")
     for date_format in formats:
@@ -90,15 +112,33 @@ def _parse_dates(values: pd.Series, formats: list[str]) -> pd.Series:
     return output
 
 
-def _canonical_status(value: object, status_map: dict[str, list[str]]) -> str:
+def canonicalize_gpad_status(value: object, status_map: dict[str, list[str]]) -> str:
+    """Map one published appointment status through the explicit canonical aliases."""
     normalized = str(value).strip().casefold()
     for canonical, aliases in status_map.items():
-        if normalized in {str(alias).strip().casefold() for alias in aliases}:
+        if normalized in aliases:
             return canonical
     return "unmapped"
 
 
-def _read_csv_member(archive: ZipFile, member: str, encoding: str) -> pd.DataFrame:
+def parse_nonnegative_integer_counts(values: pd.Series, *, field_name: str) -> pd.Series:
+    """Parse source counts without silently truncating fractional values."""
+    numeric = pd.to_numeric(values, errors="raise")
+    if numeric.isna().any():
+        raise ValueError(f"Missing values in GPAD count field {field_name}.")
+    numeric_float = numeric.astype("float64")
+    if ((numeric_float % 1.0) != 0.0).any():
+        examples = numeric_float[(numeric_float % 1.0) != 0.0].head(10).tolist()
+        raise ValueError(
+            f"Non-integral values in GPAD count field {field_name}; examples={examples}."
+        )
+    if (numeric_float < 0).any():
+        raise ValueError(f"Negative values in GPAD count field {field_name}.")
+    return numeric_float.astype("int64")
+
+
+def read_gpad_csv_member(archive: ZipFile, member: str, encoding: str) -> pd.DataFrame:
+    """Read one archive CSV using the frozen source encoding contract."""
     with archive.open(member) as raw:
         wrapper = TextIOWrapper(raw, encoding=encoding, newline="")
         return pd.read_csv(wrapper, low_memory=False)
@@ -132,18 +172,8 @@ def run_gpad_quality_gate(
     }
 
     encoding = str(config.get("csv_encoding", "utf-8-sig"))
-    date_formats_raw = config["date_formats"]
-    if not isinstance(date_formats_raw, list):
-        raise TypeError("date_formats must be a list.")
-    formats = [str(value) for value in date_formats_raw]
-    status_map_raw = config["status_map"]
-    if not isinstance(status_map_raw, dict):
-        raise TypeError("status_map must be a mapping.")
-    status_map: dict[str, list[str]] = {}
-    for key, values in status_map_raw.items():
-        if not isinstance(values, list):
-            raise TypeError(f"status_map aliases for {key!r} must be a list.")
-        status_map[str(key)] = [str(value) for value in values]
+    formats = config_string_list(config, "date_formats")
+    status_map = build_gpad_status_map(config)
 
     schema_rows: list[dict[str, object]] = []
     quality_rows: list[dict[str, object]] = []
@@ -158,7 +188,7 @@ def run_gpad_quality_gate(
             raise ValueError("Official GPAD archive contains no CSV files.")
 
         for member in csv_members:
-            frame = _read_csv_member(archive, member, encoding)
+            frame = read_gpad_csv_member(archive, member, encoding)
             columns = [str(column) for column in frame.columns]
             resolved: dict[str, str] | None
             error: str | None = None
@@ -181,16 +211,17 @@ def run_gpad_quality_gate(
             if resolved is None:
                 continue
 
-            dates = _parse_dates(frame[resolved["appointment_date"]], formats)
-            counts = pd.to_numeric(frame[resolved["count_of_appointments"]], errors="raise")
-            if counts.isna().any():
-                raise ValueError(f"Missing appointment counts in {member}.")
-            if (counts < 0).any():
-                raise ValueError(f"Negative appointment counts in {member}.")
+            dates = parse_gpad_dates(frame[resolved["appointment_date"]], formats)
+            counts = parse_nonnegative_integer_counts(
+                frame[resolved["count_of_appointments"]],
+                field_name=f"{member}:count_of_appointments",
+            )
 
             raw_status = frame[resolved["appointment_status"]].astype("string").fillna("<NA>")
             observed_statuses.update(raw_status.astype(str).unique().tolist())
-            canonical = raw_status.map(lambda value: _canonical_status(value, status_map))
+            canonical = raw_status.map(
+                lambda value: canonicalize_gpad_status(value, status_map)
+            )
 
             geo_code = frame[resolved["sub_icb_code"]].astype("string").str.strip()
             geo_name = frame[resolved["sub_icb_name"]].astype("string").str.strip()
@@ -202,7 +233,7 @@ def run_gpad_quality_gate(
                     "sub_icb_name": geo_name,
                     "appointment_status_raw": raw_status,
                     "appointment_status": canonical,
-                    "appointments": counts.astype("int64"),
+                    "appointments": counts,
                 }
             )
             prepared_parts.append(canonical_frame)
@@ -213,7 +244,7 @@ def run_gpad_quality_gate(
                     "date_min": dates.min(),
                     "date_max": dates.max(),
                     "unique_sub_icb": geo_code.nunique(dropna=True),
-                    "negative_count_rows": int((counts < 0).sum()),
+                    "negative_count_rows": 0,
                     "unmapped_status_rows": int((canonical == "unmapped").sum()),
                     "unmapped_status_fraction": float((canonical == "unmapped").mean()),
                 }
@@ -306,7 +337,13 @@ def run_gpad_quality_gate(
 
 __all__ = [
     "GPADQualityResult",
+    "build_gpad_status_map",
+    "canonicalize_gpad_status",
+    "config_string_list",
     "load_gpad_config",
+    "parse_gpad_dates",
+    "parse_nonnegative_integer_counts",
+    "read_gpad_csv_member",
     "resolve_schema",
     "run_gpad_quality_gate",
     "sha256_file",
