@@ -126,7 +126,7 @@ def test_quality_gate_inventories_unknown_status_without_treating_it_as_attended
 def test_quality_gate_rejects_negative_counts(tmp_path: Path) -> None:
     rows = _rows()
     rows[0]["Count_Of_Appointments"] = -1
-    with pytest.raises(ValueError, match="Negative appointment counts"):
+    with pytest.raises(ValueError, match="Negative values in GPAD count field"):
         run_gpad_quality_gate(
             _archive(tmp_path, rows),
             _config(tmp_path),
