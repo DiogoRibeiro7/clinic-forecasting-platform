@@ -12,7 +12,7 @@
     "attribution": "Contains NHS England information licensed under the Open Government Licence v3.0."
   },
   "csv_encoding": "utf-8-sig",
-  "date_formats": ["%Y-%m-%d", "%d-%b-%Y", "%d-%b-%y", "%d/%m/%Y"],
+  "date_formats": ["%Y-%m-%d", "%d%b%Y", "%d-%b-%Y", "%d-%b-%y", "%d/%m/%Y"],
   "required_fields": {
     "appointment_date": ["Appointment_Date", "APPOINTMENT_DATE", "appointment_date", "APPT_DATE"],
     "appointment_status": ["Appointment_Status", "APPOINTMENT_STATUS", "appointment_status", "APPT_STATUS"],
