@@ -3,6 +3,7 @@ name: NHS GPAD calendar support
 on:
   pull_request:
     paths:
+      - "src/clinic_forecast/nhs_gpad.py"
       - "src/clinic_forecast/nhs_gpad_calendar.py"
       - "scripts/run_nhs_gpad_calendar_support.py"
       - "tests/test_nhs_gpad_calendar.py"
@@ -32,12 +33,17 @@ jobs:
 
       - name: Download locked NHS GPAD archive
         run: |
-          mkdir -p .cache/nhs-gpad
+          mkdir -p .cache/nhs-gpad reports/outputs/nhs_gpad_calendar_support
           url="https://files.digital.nhs.uk/C9/342751/Appointments_GP_Daily_CSV_Jun_26.zip"
+          archive=".cache/nhs-gpad/Appointments_GP_Daily_CSV_Jun_26.zip"
           curl --fail --location --retry 3 --retry-delay 2 \
-            --output .cache/nhs-gpad/Appointments_GP_Daily_CSV_Jun_26.zip \
+            --output "${archive}" \
             "${url}"
-          test -s .cache/nhs-gpad/Appointments_GP_Daily_CSV_Jun_26.zip
+          test -s "${archive}"
+          printf '%s\n' "${url}" > .cache/nhs-gpad/source_url.txt
+          date -u +'%Y-%m-%dT%H:%M:%SZ' > .cache/nhs-gpad/retrieved_at.txt
+          sha256sum "${archive}" | awk '{print $1}' > .cache/nhs-gpad/archive_sha256.txt
+          stat -c '%s' "${archive}" > .cache/nhs-gpad/archive_bytes.txt
 
       - name: Run calendar-support audit
         run: |
@@ -45,7 +51,25 @@ jobs:
             --archive .cache/nhs-gpad/Appointments_GP_Daily_CSV_Jun_26.zip \
             --config config/nhs_gpad_june_2026.json
 
+      - name: Record acquisition provenance
+        if: always()
+        run: |
+          output_dir="reports/outputs/nhs_gpad_calendar_support"
+          mkdir -p "${output_dir}"
+          {
+            echo "commit_sha=${GITHUB_SHA}"
+            echo "workflow_run_id=${GITHUB_RUN_ID}"
+            echo "python=$(python --version 2>&1)"
+            echo "poetry=$(poetry --version)"
+            echo "source_url=$(cat .cache/nhs-gpad/source_url.txt 2>/dev/null || true)"
+            echo "retrieved_at=$(cat .cache/nhs-gpad/retrieved_at.txt 2>/dev/null || true)"
+            echo "archive_sha256=$(cat .cache/nhs-gpad/archive_sha256.txt 2>/dev/null || true)"
+            echo "archive_bytes=$(cat .cache/nhs-gpad/archive_bytes.txt 2>/dev/null || true)"
+          } > "${output_dir}/provenance.txt"
+          poetry run pip freeze > "${output_dir}/requirements.txt"
+
       - name: Upload calendar-support evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nhs-gpad-calendar-support-${{ github.sha }}
