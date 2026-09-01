@@ -8,7 +8,9 @@ from clinic_forecast.nhs_gpad_benchmark import run_confirmatory_benchmark
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the frozen NHS GPAD confirmatory benchmark.")
+    parser = argparse.ArgumentParser(
+        description="Run the frozen NHS GPAD confirmatory benchmark."
+    )
     parser.add_argument("--archive", required=True)
     parser.add_argument(
         "--source-config",
@@ -34,7 +36,6 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    result.quality.source_manifest_path if False else None
     (output_dir / "source_manifest.json").write_text(
         json.dumps(result.quality.source_manifest, indent=2, sort_keys=True, default=str) + "\n",
         encoding="utf-8",
