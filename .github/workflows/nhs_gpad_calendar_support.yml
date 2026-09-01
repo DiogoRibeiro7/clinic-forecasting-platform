@@ -1,0 +1,53 @@
+name: NHS GPAD calendar support
+
+on:
+  pull_request:
+    paths:
+      - "src/clinic_forecast/nhs_gpad_calendar.py"
+      - "scripts/run_nhs_gpad_calendar_support.py"
+      - "tests/test_nhs_gpad_calendar.py"
+      - "config/nhs_gpad_june_2026.json"
+      - ".github/workflows/nhs_gpad_calendar_support.yml"
+  workflow_dispatch:
+
+jobs:
+  audit:
+    name: Audit frozen GPAD calendar support
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Download locked NHS GPAD archive
+        run: |
+          mkdir -p .cache/nhs-gpad
+          url="https://files.digital.nhs.uk/C9/342751/Appointments_GP_Daily_CSV_Jun_26.zip"
+          curl --fail --location --retry 3 --retry-delay 2 \
+            --output .cache/nhs-gpad/Appointments_GP_Daily_CSV_Jun_26.zip \
+            "${url}"
+          test -s .cache/nhs-gpad/Appointments_GP_Daily_CSV_Jun_26.zip
+
+      - name: Run calendar-support audit
+        run: |
+          poetry run python scripts/run_nhs_gpad_calendar_support.py \
+            --archive .cache/nhs-gpad/Appointments_GP_Daily_CSV_Jun_26.zip \
+            --config config/nhs_gpad_june_2026.json
+
+      - name: Upload calendar-support evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: nhs-gpad-calendar-support-${{ github.sha }}
+          path: reports/outputs/nhs_gpad_calendar_support/
+          if-no-files-found: error
