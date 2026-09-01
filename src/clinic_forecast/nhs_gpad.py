@@ -132,7 +132,10 @@ def run_gpad_quality_gate(
     }
 
     encoding = str(config.get("csv_encoding", "utf-8-sig"))
-    formats = [str(value) for value in config["date_formats"]]
+    date_formats_raw = config["date_formats"]
+    if not isinstance(date_formats_raw, list):
+        raise TypeError("date_formats must be a list.")
+    formats = [str(value) for value in date_formats_raw]
     status_map_raw = config["status_map"]
     if not isinstance(status_map_raw, dict):
         raise TypeError("status_map must be a mapping.")
