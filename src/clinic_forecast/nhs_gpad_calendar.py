@@ -275,7 +275,9 @@ def run_gpad_calendar_support_audit(
         validate="many_to_one",
     )
     full_grid["source_day_present"] = full_grid["published_rows"].notna()
-    full_grid["attended_row_present"] = full_grid["attended_row_present"].fillna(False)
+    full_grid["attended_row_present"] = (
+        full_grid["attended_row_present"].astype("boolean").fillna(False).astype(bool)
+    )
     full_grid["source_support_class"] = "no_published_rows"
     full_grid.loc[
         full_grid["source_day_present"] & ~full_grid["attended_row_present"],
