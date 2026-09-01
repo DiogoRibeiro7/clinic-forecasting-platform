@@ -33,7 +33,7 @@ jobs:
 
       - name: Download frozen NHS GPAD archive
         run: |
-          mkdir -p .cache/nhs-gpad
+          mkdir -p .cache/nhs-gpad reports/outputs/nhs_gpad_quality_gate
           url="https://files.digital.nhs.uk/C9/342751/Appointments_GP_Daily_CSV_Jun_26.zip"
           curl --fail --location --retry 3 --retry-delay 2 \
             --output .cache/nhs-gpad/Appointments_GP_Daily_CSV_Jun_26.zip \
@@ -41,6 +41,11 @@ jobs:
           test -s .cache/nhs-gpad/Appointments_GP_Daily_CSV_Jun_26.zip
           printf '%s\n' "${url}" > .cache/nhs-gpad/source_url.txt
           date -u +'%Y-%m-%dT%H:%M:%SZ' > .cache/nhs-gpad/retrieved_at.txt
+          sha256sum .cache/nhs-gpad/Appointments_GP_Daily_CSV_Jun_26.zip \
+            | awk '{print $1}' \
+            > reports/outputs/nhs_gpad_quality_gate/acquisition_sha256.txt
+          stat --format='%s' .cache/nhs-gpad/Appointments_GP_Daily_CSV_Jun_26.zip \
+            > reports/outputs/nhs_gpad_quality_gate/acquisition_bytes.txt
 
       - name: Run frozen acquisition and quality gate
         run: |
@@ -51,8 +56,10 @@ jobs:
             --retrieval-timestamp-utc "${retrieved_at}"
 
       - name: Record environment provenance
+        if: always()
         run: |
           output_dir="reports/outputs/nhs_gpad_quality_gate"
+          mkdir -p "${output_dir}"
           {
             echo "commit_sha=${GITHUB_SHA}"
             echo "workflow_run_id=${GITHUB_RUN_ID}"
@@ -60,10 +67,13 @@ jobs:
             echo "poetry=$(poetry --version)"
             echo "source_url=$(cat .cache/nhs-gpad/source_url.txt)"
             echo "retrieved_at=$(cat .cache/nhs-gpad/retrieved_at.txt)"
+            echo "archive_sha256=$(cat ${output_dir}/acquisition_sha256.txt)"
+            echo "archive_bytes=$(cat ${output_dir}/acquisition_bytes.txt)"
           } > "${output_dir}/provenance.txt"
           poetry run pip freeze > "${output_dir}/requirements.txt"
 
       - name: Upload quality evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nhs-gpad-quality-${{ github.sha }}

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from io import BytesIO, TextIOWrapper
+from io import TextIOWrapper
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -44,7 +44,9 @@ def resolve_schema(columns: list[str], config: dict[str, object]) -> dict[str, s
     required = config["required_fields"]
     optional = config["optional_fields"]
     if not isinstance(required, dict) or not isinstance(optional, dict):
-        raise TypeError("Schema configuration must contain required_fields and optional_fields maps.")
+        raise TypeError(
+            "Schema configuration must contain required_fields and optional_fields maps."
+        )
 
     resolved: dict[str, str] = {}
     missing: list[str] = []
@@ -56,7 +58,10 @@ def resolve_schema(columns: list[str], config: dict[str, object]) -> dict[str, s
         else:
             resolved[str(semantic)] = match
     if missing:
-        raise ValueError(f"Required GPAD semantic fields not resolved: {missing}; columns={columns}")
+        raise ValueError(
+            "Required GPAD semantic fields not resolved: "
+            f"{missing}; columns={columns}"
+        )
 
     for semantic, aliases_raw in optional.items():
         aliases = [str(value) for value in aliases_raw]
@@ -262,9 +267,7 @@ def run_gpad_quality_gate(
         sort=False,
     )
 
-    totals = (
-        raw.groupby("appointment_status", observed=True)["appointments"].sum().to_dict()
-    )
+    totals = raw.groupby("appointment_status", observed=True)["appointments"].sum().to_dict()
     quality_summary: dict[str, object] = {
         "recognized_csv_files": len(prepared_parts),
         "inventory_csv_files": len(schema_rows),
