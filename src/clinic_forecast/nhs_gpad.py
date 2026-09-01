@@ -7,6 +7,7 @@ import json
 from dataclasses import dataclass
 from io import TextIOWrapper
 from pathlib import Path
+from typing import cast
 from zipfile import ZipFile
 
 import pandas as pd
@@ -22,7 +23,10 @@ class GPADQualityResult:
 
 
 def load_gpad_config(path: str | Path) -> dict[str, object]:
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    loaded = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise TypeError("GPAD configuration must be a mapping.")
+    return cast(dict[str, object], loaded)
 
 
 def sha256_file(path: str | Path) -> str:
@@ -128,14 +132,18 @@ def run_gpad_quality_gate(
     }
 
     encoding = str(config.get("csv_encoding", "utf-8-sig"))
-    formats = [str(value) for value in config["date_formats"]]
+    date_formats_raw = config["date_formats"]
+    if not isinstance(date_formats_raw, list):
+        raise TypeError("date_formats must be a list.")
+    formats = [str(value) for value in date_formats_raw]
     status_map_raw = config["status_map"]
     if not isinstance(status_map_raw, dict):
         raise TypeError("status_map must be a mapping.")
-    status_map = {
-        str(key): [str(value) for value in values]
-        for key, values in status_map_raw.items()
-    }
+    status_map: dict[str, list[str]] = {}
+    for key, values in status_map_raw.items():
+        if not isinstance(values, list):
+            raise TypeError(f"status_map aliases for {key!r} must be a list.")
+        status_map[str(key)] = [str(value) for value in values]
 
     schema_rows: list[dict[str, object]] = []
     quality_rows: list[dict[str, object]] = []
