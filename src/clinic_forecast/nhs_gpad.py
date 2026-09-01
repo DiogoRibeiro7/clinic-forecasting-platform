@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from io import TextIOWrapper
 from pathlib import Path
 from typing import cast
@@ -122,26 +123,56 @@ def canonicalize_gpad_status(value: object, status_map: dict[str, list[str]]) ->
 
 
 def parse_nonnegative_integer_counts(values: pd.Series, *, field_name: str) -> pd.Series:
-    """Parse source counts without silently truncating fractional values."""
-    numeric = pd.to_numeric(values, errors="raise")
-    if numeric.isna().any():
+    """Parse source count lexemes exactly with a vectorized integer fast path."""
+    maximum = 2**63 - 1
+    maximum_text = str(maximum)
+    text = values.astype("string").str.strip()
+    missing = text.isna() | text.eq("")
+    if missing.any():
         raise ValueError(f"Missing values in GPAD count field {field_name}.")
-    numeric_float = numeric.astype("float64")
-    if ((numeric_float % 1.0) != 0.0).any():
-        examples = numeric_float[(numeric_float % 1.0) != 0.0].head(10).tolist()
-        raise ValueError(
-            f"Non-integral values in GPAD count field {field_name}; examples={examples}."
+
+    parsed = pd.Series(0, index=values.index, dtype="int64")
+    plain_integer = text.str.fullmatch(r"\+?\d+")
+    if plain_integer.any():
+        canonical = text[plain_integer].str.replace(r"^\+", "", regex=True).str.lstrip("0")
+        canonical = canonical.mask(canonical.eq(""), "0")
+        too_long = canonical.str.len() > len(maximum_text)
+        too_large_at_limit = (canonical.str.len() == len(maximum_text)) & (
+            canonical > maximum_text
         )
-    if (numeric_float < 0).any():
-        raise ValueError(f"Negative values in GPAD count field {field_name}.")
-    return numeric_float.astype("int64")
+        if (too_long | too_large_at_limit).any():
+            raise ValueError(f"GPAD count field {field_name} exceeds int64 range.")
+        parsed.loc[canonical.index] = canonical.astype("int64")
+
+    maximum_decimal = Decimal(maximum)
+    for index, token in text[~plain_integer].items():
+        try:
+            decimal_value = Decimal(str(token))
+        except InvalidOperation as exc:
+            raise ValueError(
+                f"Invalid numeric value in GPAD count field {field_name}: {token!r}."
+            ) from exc
+        if not decimal_value.is_finite():
+            raise ValueError(
+                f"Non-finite value in GPAD count field {field_name}: {token!r}."
+            )
+        if decimal_value != decimal_value.to_integral_value():
+            raise ValueError(
+                f"Non-integral values in GPAD count field {field_name}; example={token!r}."
+            )
+        if decimal_value < 0:
+            raise ValueError(f"Negative values in GPAD count field {field_name}.")
+        if decimal_value > maximum_decimal:
+            raise ValueError(f"GPAD count field {field_name} exceeds int64 range.")
+        parsed.at[index] = int(decimal_value)
+    return parsed
 
 
 def read_gpad_csv_member(archive: ZipFile, member: str, encoding: str) -> pd.DataFrame:
-    """Read one archive CSV using the frozen source encoding contract."""
+    """Read one archive CSV while preserving source lexemes for validation."""
     with archive.open(member) as raw:
         wrapper = TextIOWrapper(raw, encoding=encoding, newline="")
-        return pd.read_csv(wrapper, low_memory=False)
+        return pd.read_csv(wrapper, low_memory=False, dtype="string")
 
 
 def run_gpad_quality_gate(

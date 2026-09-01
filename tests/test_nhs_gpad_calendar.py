@@ -66,6 +66,12 @@ def _write_fixture(tmp_path: Path) -> tuple[Path, Path]:
     return archive_path, config_path
 
 
+def _relock_config(archive_path: Path, config_path: Path) -> None:
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["source"]["expected_sha256"] = sha256_file(archive_path)
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+
 def test_calendar_support_distinguishes_source_support_classes(tmp_path: Path) -> None:
     archive_path, config_path = _write_fixture(tmp_path)
     result = run_gpad_calendar_support_audit(archive_path, config_path)
@@ -102,20 +108,26 @@ def test_calendar_support_reports_coverage_and_zero_counts(tmp_path: Path) -> No
 def test_calendar_support_rejects_fractional_counts(tmp_path: Path) -> None:
     archive_path, config_path = _write_fixture(tmp_path)
     with ZipFile(archive_path, "a") as archive:
-        bad = pd.DataFrame(
-            {
-                "SUB_ICB_LOCATION_CODE": ["A"],
-                "SUB_ICB_LOCATION_NAME": ["Area A"],
-                "Appointment_Date": ["03JAN2024"],
-                "APPT_STATUS": ["Attended"],
-                "COUNT_OF_APPOINTMENTS": [1.5],
-            }
+        archive.writestr(
+            "SUB_ICB_LOCATION_CSV_Fractional.csv",
+            "SUB_ICB_LOCATION_CODE,SUB_ICB_LOCATION_NAME,Appointment_Date,APPT_STATUS,"
+            "COUNT_OF_APPOINTMENTS\nA,Area A,03JAN2024,Attended,1.5\n",
         )
-        archive.writestr("SUB_ICB_LOCATION_CSV_Fractional.csv", bad.to_csv(index=False))
+    _relock_config(archive_path, config_path)
 
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    config["source"]["expected_sha256"] = sha256_file(archive_path)
-    config_path.write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(ValueError, match="Non-integral values"):
+        run_gpad_calendar_support_audit(archive_path, config_path)
+
+
+def test_calendar_support_rejects_fraction_beyond_float_precision(tmp_path: Path) -> None:
+    archive_path, config_path = _write_fixture(tmp_path)
+    with ZipFile(archive_path, "a") as archive:
+        archive.writestr(
+            "SUB_ICB_LOCATION_CSV_Precision.csv",
+            "SUB_ICB_LOCATION_CODE,SUB_ICB_LOCATION_NAME,Appointment_Date,APPT_STATUS,"
+            "COUNT_OF_APPOINTMENTS\nA,Area A,03JAN2024,Attended,1.0000000000000001\n",
+        )
+    _relock_config(archive_path, config_path)
 
     with pytest.raises(ValueError, match="Non-integral values"):
         run_gpad_calendar_support_audit(archive_path, config_path)
@@ -125,10 +137,7 @@ def test_calendar_support_fails_on_daily_schema_drift(tmp_path: Path) -> None:
     archive_path, config_path = _write_fixture(tmp_path)
     with ZipFile(archive_path, "a") as archive:
         archive.writestr("SUB_ICB_LOCATION_CSV_Bad.csv", "unexpected,value\n1,2\n")
-
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    config["source"]["expected_sha256"] = sha256_file(archive_path)
-    config_path.write_text(json.dumps(config), encoding="utf-8")
+    _relock_config(archive_path, config_path)
 
     with pytest.raises(ValueError, match="daily schema failures"):
         run_gpad_calendar_support_audit(archive_path, config_path)
