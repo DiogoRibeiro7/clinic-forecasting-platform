@@ -6,6 +6,7 @@ on:
       - "src/clinic_forecast/nhs_gpad.py"
       - "src/clinic_forecast/nhs_gpad_calendar.py"
       - "scripts/run_nhs_gpad_calendar_support.py"
+      - "tests/test_nhs_gpad.py"
       - "tests/test_nhs_gpad_calendar.py"
       - "config/nhs_gpad_june_2026.json"
       - ".github/workflows/nhs_gpad_calendar_support.yml"
@@ -32,20 +33,23 @@ jobs:
         run: poetry install --no-interaction
 
       - name: Download locked NHS GPAD archive
+        id: acquire
         run: |
           mkdir -p .cache/nhs-gpad reports/outputs/nhs_gpad_calendar_support
           url="https://files.digital.nhs.uk/C9/342751/Appointments_GP_Daily_CSV_Jun_26.zip"
           archive=".cache/nhs-gpad/Appointments_GP_Daily_CSV_Jun_26.zip"
+          printf '%s\n' "${url}" > .cache/nhs-gpad/source_url.txt
+          date -u +'%Y-%m-%dT%H:%M:%SZ' > .cache/nhs-gpad/retrieval_attempted_at.txt
           curl --fail --location --retry 3 --retry-delay 2 \
             --output "${archive}" \
             "${url}"
           test -s "${archive}"
-          printf '%s\n' "${url}" > .cache/nhs-gpad/source_url.txt
           date -u +'%Y-%m-%dT%H:%M:%SZ' > .cache/nhs-gpad/retrieved_at.txt
           sha256sum "${archive}" | awk '{print $1}' > .cache/nhs-gpad/archive_sha256.txt
           stat -c '%s' "${archive}" > .cache/nhs-gpad/archive_bytes.txt
 
       - name: Run calendar-support audit
+        id: calendar_audit
         run: |
           poetry run python scripts/run_nhs_gpad_calendar_support.py \
             --archive .cache/nhs-gpad/Appointments_GP_Daily_CSV_Jun_26.zip \
@@ -56,12 +60,21 @@ jobs:
         run: |
           output_dir="reports/outputs/nhs_gpad_calendar_support"
           mkdir -p "${output_dir}"
+          status="failed"
+          if [ "${{ steps.acquire.outcome }}" = "success" ] && \
+             [ "${{ steps.calendar_audit.outcome }}" = "success" ]; then
+            status="success"
+          fi
           {
+            echo "status=${status}"
+            echo "acquisition_outcome=${{ steps.acquire.outcome }}"
+            echo "audit_outcome=${{ steps.calendar_audit.outcome }}"
             echo "commit_sha=${GITHUB_SHA}"
             echo "workflow_run_id=${GITHUB_RUN_ID}"
             echo "python=$(python --version 2>&1)"
             echo "poetry=$(poetry --version)"
             echo "source_url=$(cat .cache/nhs-gpad/source_url.txt 2>/dev/null || true)"
+            echo "retrieval_attempted_at=$(cat .cache/nhs-gpad/retrieval_attempted_at.txt 2>/dev/null || true)"
             echo "retrieved_at=$(cat .cache/nhs-gpad/retrieved_at.txt 2>/dev/null || true)"
             echo "archive_sha256=$(cat .cache/nhs-gpad/archive_sha256.txt 2>/dev/null || true)"
             echo "archive_bytes=$(cat .cache/nhs-gpad/archive_bytes.txt 2>/dev/null || true)"
