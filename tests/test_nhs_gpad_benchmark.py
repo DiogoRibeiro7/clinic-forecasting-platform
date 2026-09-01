@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -133,7 +132,8 @@ def test_paired_model_contrasts_pair_only_on_outer_origin() -> None:
     )
 
     contrasts = paired_model_contrasts(fold_scores, expected_origins=3)
-    hgb_mae = contrasts[(contrasts["model"] == "global_ml_hgb") & (contrasts["metric"] == "mae")].iloc[0]
+    mask = (contrasts["model"] == "global_ml_hgb") & (contrasts["metric"] == "mae")
+    hgb_mae = contrasts[mask].iloc[0]
     assert hgb_mae["negative_count"] == 3
     assert hgb_mae["positive_count"] == 0
     assert hgb_mae["zero_count"] == 0
