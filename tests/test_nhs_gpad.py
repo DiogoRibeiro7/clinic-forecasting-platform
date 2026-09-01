@@ -7,7 +7,11 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import pandas as pd
 import pytest
 
-from clinic_forecast.nhs_gpad import resolve_schema, run_gpad_quality_gate
+from clinic_forecast.nhs_gpad import (
+    parse_nonnegative_integer_counts,
+    resolve_schema,
+    run_gpad_quality_gate,
+)
 
 
 def _config(tmp_path: Path, *, expected_sha256: str | None = None) -> Path:
@@ -105,6 +109,30 @@ def test_resolve_schema_uses_only_explicit_aliases() -> None:
     }
     with pytest.raises(ValueError, match="not resolved"):
         resolve_schema(["appointment date", "Appointment_Status"], config)
+
+
+def test_count_parser_accepts_int64_maximum() -> None:
+    result = parse_nonnegative_integer_counts(
+        pd.Series(["9223372036854775807"], dtype="string"),
+        field_name="test",
+    )
+    assert result.tolist() == [9223372036854775807]
+
+
+def test_count_parser_rejects_value_above_int64() -> None:
+    with pytest.raises(ValueError, match="exceeds int64 range"):
+        parse_nonnegative_integer_counts(
+            pd.Series(["9223372036854775808"], dtype="string"),
+            field_name="test",
+        )
+
+
+def test_count_parser_rejects_pathological_exponent_before_integer_materialization() -> None:
+    with pytest.raises(ValueError, match="exceeds int64 range"):
+        parse_nonnegative_integer_counts(
+            pd.Series(["1e100000000"], dtype="string"),
+            field_name="test",
+        )
 
 
 def test_quality_gate_inventories_unknown_status_without_treating_it_as_attended(
