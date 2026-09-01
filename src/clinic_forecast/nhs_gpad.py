@@ -123,16 +123,31 @@ def canonicalize_gpad_status(value: object, status_map: dict[str, list[str]]) ->
 
 
 def parse_nonnegative_integer_counts(values: pd.Series, *, field_name: str) -> pd.Series:
-    """Parse source count lexemes exactly and reject non-integral values."""
-    minimum = -(2**63)
+    """Parse source count lexemes exactly with a vectorized integer fast path."""
     maximum = 2**63 - 1
-    parsed: list[int] = []
-    for raw in values.astype("string"):
-        if pd.isna(raw) or not str(raw).strip():
-            raise ValueError(f"Missing values in GPAD count field {field_name}.")
-        token = str(raw).strip()
+    maximum_text = str(maximum)
+    text = values.astype("string").str.strip()
+    missing = text.isna() | text.eq("")
+    if missing.any():
+        raise ValueError(f"Missing values in GPAD count field {field_name}.")
+
+    parsed = pd.Series(0, index=values.index, dtype="int64")
+    plain_integer = text.str.fullmatch(r"\+?\d+")
+    if plain_integer.any():
+        canonical = text[plain_integer].str.replace(r"^\+", "", regex=True).str.lstrip("0")
+        canonical = canonical.mask(canonical.eq(""), "0")
+        too_long = canonical.str.len() > len(maximum_text)
+        too_large_at_limit = (canonical.str.len() == len(maximum_text)) & (
+            canonical > maximum_text
+        )
+        if (too_long | too_large_at_limit).any():
+            raise ValueError(f"GPAD count field {field_name} exceeds int64 range.")
+        parsed.loc[canonical.index] = canonical.astype("int64")
+
+    maximum_decimal = Decimal(maximum)
+    for index, token in text[~plain_integer].items():
         try:
-            decimal_value = Decimal(token)
+            decimal_value = Decimal(str(token))
         except InvalidOperation as exc:
             raise ValueError(
                 f"Invalid numeric value in GPAD count field {field_name}: {token!r}."
@@ -145,13 +160,12 @@ def parse_nonnegative_integer_counts(values: pd.Series, *, field_name: str) -> p
             raise ValueError(
                 f"Non-integral values in GPAD count field {field_name}; example={token!r}."
             )
-        integer_value = int(decimal_value)
-        if integer_value < 0:
+        if decimal_value < 0:
             raise ValueError(f"Negative values in GPAD count field {field_name}.")
-        if integer_value < minimum or integer_value > maximum:
+        if decimal_value > maximum_decimal:
             raise ValueError(f"GPAD count field {field_name} exceeds int64 range.")
-        parsed.append(integer_value)
-    return pd.Series(parsed, index=values.index, dtype="int64")
+        parsed.at[index] = int(decimal_value)
+    return parsed
 
 
 def read_gpad_csv_member(archive: ZipFile, member: str, encoding: str) -> pd.DataFrame:
