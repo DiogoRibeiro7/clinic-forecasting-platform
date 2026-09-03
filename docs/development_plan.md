@@ -1,5 +1,7 @@
 # Development Plan
 
+> **Historical planning document.** This audit was written on 2026-06-11 and describes the repository before the later forecasting, staffing, reproducibility, evidence and NHS GPAD milestones were implemented. It is retained as an engineering history, not as the current task list. See [`ROADMAP.md`](../ROADMAP.md) for current status and priorities.
+
 Audit date: 2026-06-11. This plan is the result of a full repository audit (source
 package, tests, scripts, notebooks, configs, Docker and docs) and maps each
 improvement to concrete files. It follows the staged structure in `ROADMAP.md`
