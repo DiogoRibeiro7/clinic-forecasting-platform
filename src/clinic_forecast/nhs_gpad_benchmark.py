@@ -61,6 +61,16 @@ def _list(value: object, name: str) -> list[object]:
     return cast(list[object], value)
 
 
+def _integer(value: object, name: str) -> int:
+    """Read a frozen config scalar as an integer without weakening mypy."""
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise TypeError(f"{name} must be an integer or integer string.")
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must contain an integer value.") from exc
+
+
 def prepare_confirmatory_panel(
     calendar_support: pd.DataFrame,
     policy: dict[str, object],
@@ -104,8 +114,8 @@ def prepare_confirmatory_panel(
 
     date_start = pd.Timestamp(str(policy["date_start"]))
     date_end = pd.Timestamp(str(policy["date_end"]))
-    expected_days = int(policy["calendar_days"])
-    expected_rows = int(policy["panel_rows"])
+    expected_days = _integer(policy["calendar_days"], "calendar_days")
+    expected_rows = _integer(policy["panel_rows"], "panel_rows")
     expected_calendar = pd.date_range(date_start, date_end, freq="D")
     if len(expected_calendar) != expected_days:
         raise ValueError("Frozen calendar_days does not match the configured date range.")
@@ -125,10 +135,11 @@ def prepare_confirmatory_panel(
     )
     actual_support = selected["source_support_class"].value_counts().to_dict()
     for status in ("attended_present", "other_status_only", "no_published_rows"):
-        if int(actual_support.get(status, 0)) != int(expected_support[status]):
+        expected_count = _integer(expected_support[status], f"support_counts.{status}")
+        if int(actual_support.get(status, 0)) != expected_count:
             raise ValueError(
                 f"Frozen support count mismatch for {status}: "
-                f"expected={expected_support[status]}, observed={actual_support.get(status, 0)}."
+                f"expected={expected_count}, observed={actual_support.get(status, 0)}."
             )
 
     panel = selected[
@@ -153,16 +164,19 @@ def origin_boundaries_from_policy(policy: dict[str, object]) -> pd.DataFrame:
         item = _mapping(raw, "validation.origin")
         rows.append(
             {
-                "origin": int(item["origin"]),
+                "origin": _integer(item["origin"], "validation.origin.origin"),
                 "train_end": pd.Timestamp(str(item["train_end"])),
                 "test_start": pd.Timestamp(str(item["test_start"])),
                 "test_end": pd.Timestamp(str(item["test_end"])),
             }
         )
     frame = pd.DataFrame(rows).sort_values("origin").reset_index(drop=True)
-    expected_origins = int(validation["outer_origins"])
-    horizon = int(validation["forecast_horizon_days"])
-    step = int(validation["step_days"])
+    expected_origins = _integer(validation["outer_origins"], "validation.outer_origins")
+    horizon = _integer(
+        validation["forecast_horizon_days"],
+        "validation.forecast_horizon_days",
+    )
+    step = _integer(validation["step_days"], "validation.step_days")
     if len(frame) != expected_origins:
         raise ValueError(
             f"Expected {expected_origins} frozen origins; observed {len(frame)}."
@@ -366,7 +380,11 @@ def run_confirmatory_benchmark(
     boundaries = origin_boundaries_from_policy(policy)
 
     validation = _mapping(policy["validation"], "validation")
-    initial_training_days = int(validation["initial_training_days"])
+    geography_policy = _mapping(policy["geography_policy"], "geography_policy")
+    initial_training_days = _integer(
+        validation["initial_training_days"],
+        "validation.initial_training_days",
+    )
     first_train_end = pd.Timestamp(boundaries.iloc[0]["train_end"])
     first_train_start = pd.Timestamp(str(policy["date_start"]))
     if (first_train_end - first_train_start).days + 1 != initial_training_days:
@@ -385,12 +403,16 @@ def run_confirmatory_benchmark(
         )
     forecasts = pd.concat(forecast_parts, ignore_index=True)
 
-    expected_origins = int(validation["outer_origins"])
-    expected_per_model = (
-        expected_origins
-        * int(policy["geography_policy"]["eligible_geographies"])  # type: ignore[index]
-        * int(validation["forecast_horizon_days"])
+    expected_origins = _integer(validation["outer_origins"], "validation.outer_origins")
+    eligible_geographies = _integer(
+        geography_policy["eligible_geographies"],
+        "geography_policy.eligible_geographies",
     )
+    forecast_horizon_days = _integer(
+        validation["forecast_horizon_days"],
+        "validation.forecast_horizon_days",
+    )
+    expected_per_model = expected_origins * eligible_geographies * forecast_horizon_days
     counts = forecasts.groupby("model", observed=True).size()
     if not (counts == expected_per_model).all():
         raise ValueError(
@@ -436,7 +458,7 @@ def run_confirmatory_benchmark(
         "panel_rows": len(panel),
         "eligible_geographies": int(panel["clinic_id"].nunique()),
         "outer_origins": expected_origins,
-        "forecast_horizon_days": int(validation["forecast_horizon_days"]),
+        "forecast_horizon_days": forecast_horizon_days,
         "models": list(EXPECTED_MODELS),
         "forecast_rows": len(forecasts),
         "forecast_rows_per_model": counts.to_dict(),
