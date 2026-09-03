@@ -63,7 +63,7 @@ def _list(value: object, name: str) -> list[object]:
 
 def _integer(value: object, name: str) -> int:
     """Read a frozen config scalar as an integer without weakening mypy."""
-    if isinstance(value, bool) or not isinstance(value, (int, str)):
+    if isinstance(value, bool) or not isinstance(value, int | str):
         raise TypeError(f"{name} must be an integer or integer string.")
     try:
         return int(value)
@@ -334,7 +334,7 @@ def paired_model_contrasts(
                     "model": model,
                     "baseline_model": baseline_model,
                     "metric": metric,
-                    "difference_definition": "model_minus_seasonal_naive",
+                    "difference_definition": f"model_minus_{baseline_model}",
                     "n_origins": expected_origins,
                     "mean_difference": float(difference.mean()),
                     "median_difference": float(difference.median()),
