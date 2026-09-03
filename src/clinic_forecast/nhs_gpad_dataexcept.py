@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import NoReturn
 from zipfile import BadZipFile
 
 from dataexcept import (
@@ -23,7 +24,7 @@ from clinic_forecast.nhs_gpad_calendar import (
 )
 
 
-def _raise_structured_data_error(exc: ValueError) -> None:
+def _raise_structured_data_error(exc: ValueError) -> NoReturn:
     """Translate a proven GPAD data failure into the DataExcept hierarchy."""
     message = str(exc)
     lowered = message.casefold()
@@ -54,7 +55,6 @@ def run_gpad_quality_gate_structured(
         raise DataLoadingError(str(archive_path), exc) from exc
     except ValueError as exc:
         _raise_structured_data_error(exc)
-        raise AssertionError("unreachable")
 
 
 def run_gpad_calendar_support_audit_structured(
@@ -68,7 +68,6 @@ def run_gpad_calendar_support_audit_structured(
         raise DataLoadingError(str(archive_path), exc) from exc
     except ValueError as exc:
         _raise_structured_data_error(exc)
-        raise AssertionError("unreachable")
 
 
 def run_confirmatory_benchmark_structured(
@@ -90,7 +89,6 @@ def run_confirmatory_benchmark_structured(
         raise DataLoadingError(str(archive_path), exc) from exc
     except ValueError as exc:
         _raise_structured_data_error(exc)
-        raise AssertionError("unreachable")
 
 
 __all__ = [
