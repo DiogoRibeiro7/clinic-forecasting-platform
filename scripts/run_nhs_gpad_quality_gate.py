@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from clinic_forecast.nhs_gpad import run_gpad_quality_gate
+from clinic_forecast.nhs_gpad_dataexcept import run_gpad_quality_gate_structured
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,7 +26,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    result = run_gpad_quality_gate(
+    result = run_gpad_quality_gate_structured(
         archive_path=args.archive,
         config_path=args.config,
         retrieval_timestamp_utc=args.retrieval_timestamp_utc,
