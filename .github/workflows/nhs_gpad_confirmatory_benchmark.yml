@@ -1,0 +1,129 @@
+name: NHS GPAD confirmatory benchmark
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/clinic_forecast/nhs_gpad.py"
+      - "src/clinic_forecast/nhs_gpad_calendar.py"
+      - "src/clinic_forecast/nhs_gpad_benchmark.py"
+      - "src/clinic_forecast/features.py"
+      - "src/clinic_forecast/models/baseline.py"
+      - "src/clinic_forecast/models/global_ml.py"
+      - "src/clinic_forecast/metrics.py"
+      - "src/clinic_forecast/evaluation.py"
+      - "scripts/run_nhs_gpad_confirmatory_benchmark.py"
+      - "config/nhs_gpad_june_2026.json"
+      - "config/nhs_gpad_panel_policy.json"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - ".github/workflows/nhs_gpad_confirmatory_benchmark.yml"
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    name: Run frozen NHS GPAD benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Acquire locked NHS GPAD archive
+        id: acquire
+        run: |
+          set -euo pipefail
+          cache_dir=".cache/nhs-gpad"
+          output_dir="reports/outputs/nhs_gpad_confirmatory_benchmark"
+          mkdir -p "${cache_dir}" "${output_dir}"
+          url="$(poetry run python - <<'PY'
+          import json
+          from pathlib import Path
+
+          config = json.loads(Path('config/nhs_gpad_june_2026.json').read_text())
+          print(config['source']['archive_url'])
+          PY
+          )"
+          expected_sha="$(poetry run python - <<'PY'
+          import json
+          from pathlib import Path
+
+          config = json.loads(Path('config/nhs_gpad_june_2026.json').read_text())
+          print(config['source']['expected_sha256'])
+          PY
+          )"
+          archive="${cache_dir}/Appointments_GP_Daily_CSV_Jun_26.zip"
+          date -u +'%Y-%m-%dT%H:%M:%SZ' > "${cache_dir}/retrieval_attempted_at.txt"
+          printf '%s\n' "${url}" > "${cache_dir}/source_url.txt"
+          curl --fail --location --retry 3 --retry-delay 2 --output "${archive}" "${url}"
+          test -s "${archive}"
+          date -u +'%Y-%m-%dT%H:%M:%SZ' > "${cache_dir}/retrieved_at.txt"
+          sha256sum "${archive}" | awk '{print $1}' > "${cache_dir}/archive_sha256.txt"
+          stat -c '%s' "${archive}" > "${cache_dir}/archive_bytes.txt"
+          test "$(cat "${cache_dir}/archive_sha256.txt")" = "${expected_sha}"
+
+      - name: Run frozen confirmatory benchmark
+        id: benchmark
+        run: |
+          set -euo pipefail
+          poetry run python scripts/run_nhs_gpad_confirmatory_benchmark.py \
+            --archive .cache/nhs-gpad/Appointments_GP_Daily_CSV_Jun_26.zip \
+            --source-config config/nhs_gpad_june_2026.json \
+            --panel-policy config/nhs_gpad_panel_policy.json \
+            --retrieved-at "$(cat .cache/nhs-gpad/retrieved_at.txt)"
+
+      - name: Record benchmark provenance
+        if: always()
+        run: |
+          set -euo pipefail
+          output_dir="reports/outputs/nhs_gpad_confirmatory_benchmark"
+          cache_dir=".cache/nhs-gpad"
+          mkdir -p "${output_dir}"
+          acquisition_status="failed"
+          benchmark_status="not_run"
+          if [ "${{ steps.acquire.outcome }}" = "success" ]; then
+            acquisition_status="success"
+          fi
+          if [ "${{ steps.benchmark.outcome }}" = "success" ]; then
+            benchmark_status="success"
+          elif [ "${{ steps.benchmark.outcome }}" = "failure" ]; then
+            benchmark_status="failed"
+          fi
+          overall_status="failed"
+          if [ "${acquisition_status}" = "success" ] && [ "${benchmark_status}" = "success" ]; then
+            overall_status="success"
+          fi
+          {
+            echo "status=${overall_status}"
+            echo "acquisition_status=${acquisition_status}"
+            echo "benchmark_status=${benchmark_status}"
+            echo "commit_sha=${GITHUB_SHA}"
+            echo "workflow_run_id=${GITHUB_RUN_ID}"
+            echo "python=$(python --version 2>&1)"
+            echo "poetry=$(poetry --version)"
+            echo "source_url=$(cat "${cache_dir}/source_url.txt" 2>/dev/null || true)"
+            echo "retrieval_attempted_at=$(cat "${cache_dir}/retrieval_attempted_at.txt" 2>/dev/null || true)"
+            echo "retrieved_at=$(cat "${cache_dir}/retrieved_at.txt" 2>/dev/null || true)"
+            echo "archive_sha256=$(cat "${cache_dir}/archive_sha256.txt" 2>/dev/null || true)"
+            echo "archive_bytes=$(cat "${cache_dir}/archive_bytes.txt" 2>/dev/null || true)"
+          } > "${output_dir}/provenance.txt"
+          poetry run pip freeze > "${output_dir}/requirements.txt"
+
+      - name: Upload confirmatory evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nhs-gpad-confirmatory-benchmark-${{ github.sha }}
+          path: reports/outputs/nhs_gpad_confirmatory_benchmark/
+          if-no-files-found: error
