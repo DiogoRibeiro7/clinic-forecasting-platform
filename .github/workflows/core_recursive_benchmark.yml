@@ -1,0 +1,88 @@
+name: Core recursive multi-model benchmark
+
+on:
+  pull_request:
+    paths:
+      - "src/clinic_forecast/backtesting.py"
+      - "src/clinic_forecast/benchmark.py"
+      - "src/clinic_forecast/core_benchmark.py"
+      - "src/clinic_forecast/core_benchmark_runner.py"
+      - "src/clinic_forecast/evaluation.py"
+      - "src/clinic_forecast/features.py"
+      - "src/clinic_forecast/models/baseline.py"
+      - "src/clinic_forecast/models/global_ml.py"
+      - "src/clinic_forecast/models/sarimax.py"
+      - "src/clinic_forecast/validation.py"
+      - "src/clinic_forecast/data.py"
+      - "scripts/generate_data.py"
+      - "scripts/run_core_recursive_benchmark.py"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - ".github/workflows/core_recursive_benchmark.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/clinic_forecast/backtesting.py"
+      - "src/clinic_forecast/benchmark.py"
+      - "src/clinic_forecast/core_benchmark.py"
+      - "src/clinic_forecast/core_benchmark_runner.py"
+      - "src/clinic_forecast/evaluation.py"
+      - "src/clinic_forecast/features.py"
+      - "src/clinic_forecast/models/baseline.py"
+      - "src/clinic_forecast/models/global_ml.py"
+      - "src/clinic_forecast/models/sarimax.py"
+      - "src/clinic_forecast/validation.py"
+      - "src/clinic_forecast/data.py"
+      - "scripts/generate_data.py"
+      - "scripts/run_core_recursive_benchmark.py"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - ".github/workflows/core_recursive_benchmark.yml"
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    name: Run core recursive benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Generate frozen synthetic data
+        run: poetry run python scripts/generate_data.py --seed 42
+
+      - name: Run fixed-origin multi-model benchmark
+        run: poetry run python scripts/run_core_recursive_benchmark.py
+
+      - name: Record provenance
+        if: always()
+        run: |
+          output_dir="reports/outputs/core_recursive_benchmark"
+          mkdir -p "${output_dir}"
+          {
+            echo "commit_sha=${GITHUB_SHA}"
+            echo "workflow_run_id=${GITHUB_RUN_ID}"
+            echo "python=$(python --version 2>&1)"
+            echo "poetry=$(poetry --version)"
+          } > "${output_dir}/provenance.txt"
+          poetry run pip freeze > "${output_dir}/requirements.txt"
+
+      - name: Upload benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-recursive-benchmark-${{ github.sha }}
+          path: reports/outputs/core_recursive_benchmark/
+          if-no-files-found: error
