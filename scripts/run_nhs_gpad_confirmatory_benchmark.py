@@ -46,6 +46,19 @@ def main() -> None:
         json.dumps(result.quality.quality_summary, indent=2, sort_keys=True, default=str) + "\n",
         encoding="utf-8",
     )
+    result.calendar_support.coverage_monthly.to_csv(
+        output_dir / "coverage_monthly.csv",
+        index=False,
+    )
+    result.calendar_support.calendar_support.to_csv(
+        output_dir / "calendar_support.csv",
+        index=False,
+    )
+    (output_dir / "calendar_support_summary.json").write_text(
+        json.dumps(result.calendar_support.summary, indent=2, sort_keys=True, default=str)
+        + "\n",
+        encoding="utf-8",
+    )
     result.panel.to_csv(output_dir / "prepared_attended_sub_icb_day.csv", index=False)
     result.origin_boundaries.to_csv(output_dir / "origin_boundaries.csv", index=False)
     result.forecasts.to_csv(output_dir / "forecast_rows.csv", index=False)
