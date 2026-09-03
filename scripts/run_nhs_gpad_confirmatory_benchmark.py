@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from clinic_forecast.nhs_gpad_benchmark import run_confirmatory_benchmark
+from clinic_forecast.nhs_gpad_dataexcept import run_confirmatory_benchmark_structured
 
 
 def main() -> None:
@@ -27,7 +27,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    result = run_confirmatory_benchmark(
+    result = run_confirmatory_benchmark_structured(
         args.archive,
         args.source_config,
         args.panel_policy,
@@ -47,12 +47,10 @@ def main() -> None:
         encoding="utf-8",
     )
     result.calendar_support.coverage_monthly.to_csv(
-        output_dir / "coverage_monthly.csv",
-        index=False,
+        output_dir / "coverage_monthly.csv", index=False
     )
     result.calendar_support.calendar_support.to_csv(
-        output_dir / "calendar_support.csv",
-        index=False,
+        output_dir / "calendar_support.csv", index=False
     )
     (output_dir / "calendar_support_summary.json").write_text(
         json.dumps(result.calendar_support.summary, indent=2, sort_keys=True, default=str)
