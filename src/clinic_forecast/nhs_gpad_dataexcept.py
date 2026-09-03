@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import NoReturn
 from zipfile import BadZipFile
 
 from dataexcept import (
@@ -112,7 +113,8 @@ def _is_config_io_error(exc: OSError, config_paths: tuple[str | Path, ...]) -> b
     return any(error_path == Path(path) for path in config_paths)
 
 
-def _raise_loading_error(archive_path: str | Path, exc: Exception) -> None:
+def _raise_loading_error(archive_path: str | Path, exc: Exception) -> NoReturn:
+    """Raise a structured archive-loading error while preserving the cause."""
     raise DataLoadingError(str(archive_path), exc) from exc
 
 
