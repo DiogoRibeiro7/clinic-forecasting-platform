@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from clinic_forecast.nhs_gpad_calendar import run_gpad_calendar_support_audit
+from clinic_forecast.nhs_gpad_dataexcept import run_gpad_calendar_support_audit_structured
 
 
 def parse_args() -> argparse.Namespace:
@@ -25,7 +25,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    result = run_gpad_calendar_support_audit(args.archive, args.config)
+    result = run_gpad_calendar_support_audit_structured(args.archive, args.config)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     result.coverage_monthly.to_csv(args.output_dir / "coverage_monthly.csv", index=False)
     result.calendar_support.to_csv(args.output_dir / "calendar_support.csv", index=False)
