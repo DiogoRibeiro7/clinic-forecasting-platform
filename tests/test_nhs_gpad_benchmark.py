@@ -78,6 +78,29 @@ def _calendar_support() -> pd.DataFrame:
     )
 
 
+def _fold_scores() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "origin": [1, 2, 3, 1, 2, 3, 1, 2, 3],
+            "model": [
+                "seasonal_naive",
+                "seasonal_naive",
+                "seasonal_naive",
+                "moving_average_28",
+                "moving_average_28",
+                "moving_average_28",
+                "global_ml_hgb",
+                "global_ml_hgb",
+                "global_ml_hgb",
+            ],
+            "mae": [10.0, 10.0, 10.0, 8.0, 11.0, 10.0, 7.0, 8.0, 9.0],
+            "wape": [20.0, 20.0, 20.0, 18.0, 21.0, 20.0, 17.0, 18.0, 19.0],
+            "rmse": [12.0, 12.0, 12.0, 10.0, 13.0, 12.0, 9.0, 10.0, 11.0],
+            "bias": [1.0, 1.0, 1.0, 0.0, 2.0, 1.0, -1.0, 0.0, 1.0],
+        }
+    )
+
+
 def test_prepare_confirmatory_panel_applies_only_frozen_zero_policy() -> None:
     panel = prepare_confirmatory_panel(_calendar_support(), _policy())
 
@@ -105,33 +128,13 @@ def test_origin_boundaries_validate_exact_frozen_windows() -> None:
 def test_origin_boundaries_reject_retroactive_step_change() -> None:
     policy = json.loads(json.dumps(_policy()))
     policy["validation"]["origins"][1]["test_start"] = "2024-01-07"
+    policy["validation"]["origins"][1]["test_end"] = "2024-01-08"
     with pytest.raises(ValueError, match="day after training ends|step size"):
         origin_boundaries_from_policy(policy)
 
 
 def test_paired_model_contrasts_pair_only_on_outer_origin() -> None:
-    fold_scores = pd.DataFrame(
-        {
-            "origin": [1, 2, 3, 1, 2, 3, 1, 2, 3],
-            "model": [
-                "seasonal_naive",
-                "seasonal_naive",
-                "seasonal_naive",
-                "moving_average_28",
-                "moving_average_28",
-                "moving_average_28",
-                "global_ml_hgb",
-                "global_ml_hgb",
-                "global_ml_hgb",
-            ],
-            "mae": [10.0, 10.0, 10.0, 8.0, 11.0, 10.0, 7.0, 8.0, 9.0],
-            "wape": [20.0, 20.0, 20.0, 18.0, 21.0, 20.0, 17.0, 18.0, 19.0],
-            "rmse": [12.0, 12.0, 12.0, 10.0, 13.0, 12.0, 9.0, 10.0, 11.0],
-            "bias": [1.0, 1.0, 1.0, 0.0, 2.0, 1.0, -1.0, 0.0, 1.0],
-        }
-    )
-
-    contrasts = paired_model_contrasts(fold_scores, expected_origins=3)
+    contrasts = paired_model_contrasts(_fold_scores(), expected_origins=3)
     mask = (contrasts["model"] == "global_ml_hgb") & (contrasts["metric"] == "mae")
     hgb_mae = contrasts[mask].iloc[0]
     assert hgb_mae["negative_count"] == 3
@@ -139,3 +142,15 @@ def test_paired_model_contrasts_pair_only_on_outer_origin() -> None:
     assert hgb_mae["zero_count"] == 0
     assert hgb_mae["dominant_nonzero_sign"] == "negative"
     assert hgb_mae["exact_two_sided_sign_test_p"] == pytest.approx(0.25)
+
+
+def test_paired_model_contrasts_labels_custom_baseline() -> None:
+    contrasts = paired_model_contrasts(
+        _fold_scores(),
+        expected_origins=3,
+        baseline_model="moving_average_28",
+    )
+    assert set(contrasts["baseline_model"]) == {"moving_average_28"}
+    assert set(contrasts["difference_definition"]) == {
+        "model_minus_moving_average_28"
+    }
