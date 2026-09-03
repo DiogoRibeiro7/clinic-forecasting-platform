@@ -15,6 +15,8 @@ on:
       - "scripts/run_nhs_gpad_confirmatory_benchmark.py"
       - "config/nhs_gpad_june_2026.json"
       - "config/nhs_gpad_panel_policy.json"
+      - "pyproject.toml"
+      - "poetry.lock"
       - ".github/workflows/nhs_gpad_confirmatory_benchmark.yml"
   workflow_dispatch:
 
@@ -45,7 +47,22 @@ jobs:
           cache_dir=".cache/nhs-gpad"
           output_dir="reports/outputs/nhs_gpad_confirmatory_benchmark"
           mkdir -p "${cache_dir}" "${output_dir}"
-          url="https://files.digital.nhs.uk/C9/342751/Appointments_GP_Daily_CSV_Jun_26.zip"
+          url="$(poetry run python - <<'PY'
+          import json
+          from pathlib import Path
+
+          config = json.loads(Path('config/nhs_gpad_june_2026.json').read_text())
+          print(config['source']['archive_url'])
+          PY
+          )"
+          expected_sha="$(poetry run python - <<'PY'
+          import json
+          from pathlib import Path
+
+          config = json.loads(Path('config/nhs_gpad_june_2026.json').read_text())
+          print(config['source']['expected_sha256'])
+          PY
+          )"
           archive="${cache_dir}/Appointments_GP_Daily_CSV_Jun_26.zip"
           date -u +'%Y-%m-%dT%H:%M:%SZ' > "${cache_dir}/retrieval_attempted_at.txt"
           printf '%s\n' "${url}" > "${cache_dir}/source_url.txt"
@@ -54,7 +71,7 @@ jobs:
           date -u +'%Y-%m-%dT%H:%M:%SZ' > "${cache_dir}/retrieved_at.txt"
           sha256sum "${archive}" | awk '{print $1}' > "${cache_dir}/archive_sha256.txt"
           stat -c '%s' "${archive}" > "${cache_dir}/archive_bytes.txt"
-          test "$(cat "${cache_dir}/archive_sha256.txt")" = "c5092aebe42158b2cdad5552b66e5f5e275bb07dbed2bd337dffd22178035c7f"
+          test "$(cat "${cache_dir}/archive_sha256.txt")" = "${expected_sha}"
 
       - name: Run frozen confirmatory benchmark
         id: benchmark
@@ -75,7 +92,7 @@ jobs:
           mkdir -p "${output_dir}"
           acquisition_status="failed"
           benchmark_status="not_run"
-          if [ -s "${cache_dir}/archive_sha256.txt" ]; then
+          if [ "${{ steps.acquire.outcome }}" = "success" ]; then
             acquisition_status="success"
           fi
           if [ "${{ steps.benchmark.outcome }}" = "success" ]; then
