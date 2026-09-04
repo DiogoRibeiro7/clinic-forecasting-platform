@@ -130,7 +130,11 @@ def holiday_mask(
         )
     if calendar == "england_wales":
         _validate_england_wales_range(index)
-        return index.isin(ENGLAND_WALES_BANK_HOLIDAYS)
+        return np.fromiter(
+            (stamp in ENGLAND_WALES_BANK_HOLIDAYS for stamp in index),
+            dtype=bool,
+            count=len(index),
+        )
     raise ValueError(f"Unsupported holiday calendar: {calendar!r}")
 
 
