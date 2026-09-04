@@ -34,8 +34,8 @@ import numpy as np
 import pandas as pd
 
 from clinic_forecast.holiday_calendar import (
-    HolidayCalendarName,
     LEGACY_FIXED_HOLIDAYS,
+    HolidayCalendarName,
     holiday_mask,
 )
 
