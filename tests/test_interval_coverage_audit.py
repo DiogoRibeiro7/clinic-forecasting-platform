@@ -27,7 +27,11 @@ def _usage() -> pd.DataFrame:
 
 def _biased_forecast(test: pd.DataFrame, target_col: str) -> pd.DataFrame:
     dates = pd.to_datetime(test["date"])
-    signed_error = np.where(dates.dt.dayofyear % 10 == 0, 18.0, 6.0)
+    # Most residuals are six visits, with sparse larger misses. Because the
+    # larger misses are below the 10% tail targeted by 90% conformal coverage,
+    # the calibrated interval remains non-zero without trivially covering
+    # every evaluation row.
+    signed_error = np.where(dates.dt.dayofyear % 20 == 0, 18.0, 6.0)
     forecast = test[target_col].astype(float).to_numpy() + signed_error
     return test[["clinic_id", "date"]].assign(forecast=forecast)
 
@@ -78,7 +82,7 @@ def test_audit_reports_complete_nontrivial_open_day_diagnostics(
     assert result.horizon_scores["horizon_days"].tolist() == list(range(1, 29))
     assert result.clinic_scores["clinic_id"].nunique() == 12
     assert result.fold_scores["fold"].tolist() == [5, 6, 7, 8]
-    assert 0.85 <= float(result.summary["coverage"]) < 1.0
+    assert 0.90 <= float(result.summary["coverage"]) < 1.0
     assert float(result.summary["mean_interval_width"]) > 0.0
     assert result.summary["primary_estimand"] == "open_clinic_days"
     assert result.summary["closed_zero_served_rate"] == pytest.approx(1.0)
