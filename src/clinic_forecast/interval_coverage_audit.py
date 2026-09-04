@@ -11,19 +11,21 @@ from clinic_forecast.core_benchmark import CoreBenchmarkSpec
 from clinic_forecast.evaluation import add_horizon
 from clinic_forecast.intervals import ConformalIntervals
 
+FROZEN_COVERAGE = 0.9
+
 
 @dataclass(frozen=True)
 class IntervalCoverageAuditSpec:
     """Frozen settings for the recursive conformal coverage audit."""
 
-    coverage: float = 0.9
+    coverage: float = FROZEN_COVERAGE
     calibration_folds: int = 4
     estimator: str = "hgb"
     benchmark: CoreBenchmarkSpec = CoreBenchmarkSpec()
 
     def __post_init__(self) -> None:
-        if not 0.0 < self.coverage < 1.0:
-            raise ValueError("coverage must be strictly between 0 and 1.")
+        if self.coverage != FROZEN_COVERAGE:
+            raise ValueError("coverage is frozen at 0.9 for this audit.")
         if self.calibration_folds < 1:
             raise ValueError("calibration_folds must be positive.")
         if self.calibration_folds >= self.benchmark.max_folds:
@@ -42,26 +44,44 @@ class IntervalCoverageAuditResult:
 
 
 def _coverage_summary(frame: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
-    """Summarise empirical interval coverage and width for selected groups."""
+    """Summarise open-day uncertainty and served all-day interval behaviour."""
     rows: list[dict[str, object]] = []
     grouped = frame.groupby(group_cols, observed=True) if group_cols else [((), frame)]
     for group_key, group in grouped:
         key_values = group_key if isinstance(group_key, tuple) else (group_key,)
         row = dict(zip(group_cols, key_values, strict=True))
+        open_rows = group[group["is_open"]]
+        closed_rows = group[~group["is_open"]]
+        if open_rows.empty:
+            coverage = float("nan")
+            mean_width = float("nan")
+        else:
+            coverage = float(open_rows["covered"].mean())
+            mean_width = float(open_rows["interval_width"].mean())
+        closed_zero_served = (
+            (
+                (closed_rows["y_pred"] == 0.0)
+                & (closed_rows["y_lower"] == 0.0)
+                & (closed_rows["y_upper"] == 0.0)
+            )
+            if not closed_rows.empty
+            else pd.Series(dtype=bool)
+        )
         row.update(
             {
-                "coverage": float(group["covered"].mean()),
-                "mean_interval_width": float(group["interval_width"].mean()),
-                "n_obs": len(group),
-                "n_open_days": int(group["is_open"].sum()),
+                "coverage": coverage,
+                "mean_interval_width": mean_width,
+                "n_obs": len(open_rows),
+                "n_served_obs": len(group),
+                "n_closed_days": len(closed_rows),
+                "served_coverage": float(group["covered"].mean()),
+                "served_mean_interval_width": float(group["interval_width"].mean()),
+                "closed_zero_served_rate": (
+                    float(closed_zero_served.mean())
+                    if not closed_zero_served.empty
+                    else float("nan")
+                ),
             }
-        )
-        open_rows = group[group["is_open"]]
-        row["open_day_coverage"] = (
-            float(open_rows["covered"].mean()) if not open_rows.empty else float("nan")
-        )
-        row["open_day_mean_interval_width"] = (
-            float(open_rows["interval_width"].mean()) if not open_rows.empty else float("nan")
         )
         rows.append(row)
     return pd.DataFrame(rows)
@@ -78,8 +98,18 @@ def run_interval_coverage_audit(
     intervals fitted only on earlier folds, is scored, and is appended to the
     calibration pool for the next evaluation fold. This prequential ordering
     prevents evaluation residuals from influencing their own interval width.
+
+    Conformal uncertainty is calibrated and scored on open clinic-days only.
+    Closed clinic-days are deterministic zeros in the batch-serving contract;
+    they remain in ``audit_rows`` solely to verify that the served point and
+    interval bounds are all exactly zero, and do not inflate primary coverage.
     """
     audit_spec = spec or IntervalCoverageAuditSpec()
+    if "is_open" not in usage.columns:
+        raise ValueError("Interval coverage audit requires an is_open column.")
+    if usage["is_open"].isna().any():
+        raise ValueError("Interval coverage audit does not allow missing is_open values.")
+
     splitter = audit_spec.benchmark.splitter()
     calibration_frames: list[pd.DataFrame] = []
     evaluation_frames: list[pd.DataFrame] = []
@@ -106,9 +136,13 @@ def run_interval_coverage_audit(
         scored = add_horizon(scored, fold.train_end)
         scored["fold"] = fold.fold_id
         scored["origin"] = fold.train_end
+        scored["is_open"] = scored["is_open"].astype(bool)
+        open_scored = scored[scored["is_open"]].copy()
+        if open_scored.empty:
+            raise ValueError(f"Fold {fold.fold_id} contains no open clinic-days.")
 
         if fold.fold_id <= audit_spec.calibration_folds:
-            calibration_frames.append(scored)
+            calibration_frames.append(open_scored)
             continue
 
         calibration = pd.concat(calibration_frames, ignore_index=True)
@@ -117,10 +151,6 @@ def run_interval_coverage_audit(
             group_col="clinic_id",
         ).fit(calibration)
         evaluated = intervals.apply(scored)
-        if "is_open" in evaluated.columns:
-            evaluated["is_open"] = evaluated["is_open"].astype(bool)
-        else:
-            evaluated["is_open"] = True
 
         closed = ~evaluated["is_open"]
         if closed.any():
@@ -134,7 +164,7 @@ def run_interval_coverage_audit(
         evaluated["calibration_rows"] = len(calibration)
         evaluated["calibration_folds"] = len(calibration_frames)
         evaluation_frames.append(evaluated)
-        calibration_frames.append(scored)
+        calibration_frames.append(open_scored)
 
     if not evaluation_frames:
         raise RuntimeError("Interval coverage audit produced no held-out evaluation folds.")
@@ -155,16 +185,19 @@ def run_interval_coverage_audit(
 
     summary: dict[str, object] = {
         "nominal_coverage": audit_spec.coverage,
+        "primary_estimand": "open_clinic_days",
         "estimator": audit_spec.estimator,
-        "calibration_mode": "fixed_origin_recursive_prequential",
+        "calibration_mode": "fixed_origin_recursive_prequential_open_days",
         "initial_calibration_folds": audit_spec.calibration_folds,
         "evaluation_folds": expected_evaluation_folds,
         "coverage": float(overall["coverage"]),
-        "open_day_coverage": float(overall["open_day_coverage"]),
         "mean_interval_width": float(overall["mean_interval_width"]),
-        "open_day_mean_interval_width": float(overall["open_day_mean_interval_width"]),
         "n_obs": int(overall["n_obs"]),
-        "n_open_days": int(overall["n_open_days"]),
+        "n_served_obs": int(overall["n_served_obs"]),
+        "n_closed_days": int(overall["n_closed_days"]),
+        "served_coverage": float(overall["served_coverage"]),
+        "served_mean_interval_width": float(overall["served_mean_interval_width"]),
+        "closed_zero_served_rate": float(overall["closed_zero_served_rate"]),
         "horizons": int(horizon_scores["horizon_days"].nunique()),
         "clinics": int(clinic_scores["clinic_id"].nunique()),
     }
@@ -178,6 +211,7 @@ def run_interval_coverage_audit(
 
 
 __all__ = [
+    "FROZEN_COVERAGE",
     "IntervalCoverageAuditResult",
     "IntervalCoverageAuditSpec",
     "run_interval_coverage_audit",
