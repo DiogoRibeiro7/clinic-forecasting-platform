@@ -69,7 +69,7 @@ The frozen NHS result supports aggregate forecasting generalization to observed 
 
 1. [x] **Regenerate and commit a fresh general multi-model benchmark artifact under deployment-matched recursive evaluation.** Completed with the frozen 8-fold seed-42 core benchmark and immutable result note; retired teacher-forced headline values remain superseded.
 2. [x] **Audit conformal interval coverage by forecast horizon and clinic.** Completed with a frozen 90% prequential audit on held-out open clinic-days, including fold, horizon, weekly-band and clinic diagnostics plus deterministic closed-day serving checks.
-3. [ ] **Add holiday calendars for an explicitly selected deployment geography.** Treat this as a new prospective feature addition rather than retrofitting the frozen NHS confirmatory result.
+3. [x] **Add holiday calendars for an explicitly selected deployment geography.** Completed prospectively with a source-locked England & Wales bank-holiday calendar, generation provenance and batch inheritance; legacy fixed-date semantics remain the default for frozen synthetic evidence.
 4. [ ] **Characterize temporal regimes behind the 8/19 NHS origins where seasonal naive beat HGB.** This must be labelled exploratory/descriptive and must not rewrite the confirmatory benchmark. Useful diagnostics include calendar period, target level/variance, zero frequency, abrupt level shifts and geography composition of error.
 
 ## Real policy identification — still open
