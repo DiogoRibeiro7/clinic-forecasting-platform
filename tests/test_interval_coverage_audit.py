@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import pytest
 
 import clinic_forecast.interval_coverage_audit as audit
 from clinic_forecast.data import SyntheticDataConfig, generate_network_data
 from clinic_forecast.interval_coverage_audit import (
+    FROZEN_COVERAGE,
     IntervalCoverageAuditSpec,
     run_interval_coverage_audit,
 )
@@ -23,6 +25,13 @@ def _usage() -> pd.DataFrame:
     return network.usage
 
 
+def _biased_forecast(test: pd.DataFrame, target_col: str) -> pd.DataFrame:
+    dates = pd.to_datetime(test["date"])
+    signed_error = np.where(dates.dt.dayofyear % 10 == 0, 18.0, 6.0)
+    forecast = test[target_col].astype(float).to_numpy() + signed_error
+    return test[["clinic_id", "date"]].assign(forecast=forecast)
+
+
 def test_audit_uses_only_prior_folds_for_interval_calibration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -36,9 +45,7 @@ def test_audit_uses_only_prior_folds_for_interval_calibration(
     ) -> pd.DataFrame:
         del estimator
         seen_training_ends.append(pd.to_datetime(train["date"]).max())
-        return test[["clinic_id", "date"]].assign(
-            forecast=test[target_col].astype(float).to_numpy()
-        )
+        return _biased_forecast(test, target_col)
 
     monkeypatch.setattr(audit, "recursive_global_ml_forecast", fake_recursive_forecast)
     result = run_interval_coverage_audit(_usage())
@@ -53,7 +60,7 @@ def test_audit_uses_only_prior_folds_for_interval_calibration(
     assert rows_by_fold.to_dict() == {5: 4, 6: 5, 7: 6, 8: 7}
 
 
-def test_audit_reports_complete_horizon_and_clinic_diagnostics(
+def test_audit_reports_complete_nontrivial_open_day_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fake_recursive_forecast(
@@ -63,9 +70,7 @@ def test_audit_reports_complete_horizon_and_clinic_diagnostics(
         target_col: str = "visits",
     ) -> pd.DataFrame:
         del train, estimator
-        return test[["clinic_id", "date"]].assign(
-            forecast=test[target_col].astype(float).to_numpy()
-        )
+        return _biased_forecast(test, target_col)
 
     monkeypatch.setattr(audit, "recursive_global_ml_forecast", fake_recursive_forecast)
     result = run_interval_coverage_audit(_usage())
@@ -73,9 +78,24 @@ def test_audit_reports_complete_horizon_and_clinic_diagnostics(
     assert result.horizon_scores["horizon_days"].tolist() == list(range(1, 29))
     assert result.clinic_scores["clinic_id"].nunique() == 12
     assert result.fold_scores["fold"].tolist() == [5, 6, 7, 8]
-    assert result.summary["coverage"] == pytest.approx(1.0)
+    assert 0.85 <= float(result.summary["coverage"]) < 1.0
+    assert float(result.summary["mean_interval_width"]) > 0.0
+    assert result.summary["primary_estimand"] == "open_clinic_days"
+    assert result.summary["closed_zero_served_rate"] == pytest.approx(1.0)
     assert result.summary["horizons"] == 28
     assert result.summary["clinics"] == 12
+
+
+def test_audit_requires_explicit_open_day_indicator() -> None:
+    usage = _usage().drop(columns=["is_open"])
+    with pytest.raises(ValueError, match="requires an is_open column"):
+        run_interval_coverage_audit(usage)
+
+
+def test_audit_rejects_non_frozen_coverage() -> None:
+    with pytest.raises(ValueError, match="coverage is frozen at 0.9"):
+        IntervalCoverageAuditSpec(coverage=0.95)
+    assert IntervalCoverageAuditSpec().coverage == FROZEN_COVERAGE
 
 
 def test_spec_requires_at_least_one_held_out_fold() -> None:
