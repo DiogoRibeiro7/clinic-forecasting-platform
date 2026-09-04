@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -50,6 +51,24 @@ def test_make_future_frame_calendar_and_marketing(data_dir: Path) -> None:
     assert (closed_sunday["is_open"] == 0).all()
 
 
+def test_make_future_frame_england_wales_marks_new_year_bank_holiday(data_dir: Path) -> None:
+    usage = pd.read_csv(data_dir / "clinic_daily_usage.csv", parse_dates=["date"])
+    metadata = pd.read_csv(data_dir / "clinic_metadata.csv")
+    future = make_future_frame(
+        usage,
+        metadata,
+        horizon_days=3,
+        holiday_calendar="england_wales",
+    )
+
+    new_year = future[future["date"] == pd.Timestamp("2025-01-01")]
+    assert not new_year.empty
+    assert (new_year["is_holiday"] == 1).all()
+    non_urgent = new_year[new_year["weekend_open"] == 0]
+    assert not non_urgent.empty
+    assert (non_urgent["is_open"] == 0).all()
+
+
 def test_batch_pipeline_smoke(data_dir: Path, tmp_path: Path) -> None:
     result = run_batch_forecast(small_config(data_dir, tmp_path / "outputs"))
 
@@ -87,7 +106,28 @@ def test_batch_pipeline_smoke(data_dir: Path, tmp_path: Path) -> None:
     assert record is not None
     assert record.horizon_days == 7
     assert "calibration_wape" in record.metrics
+    assert record.params["holiday_calendar"] == "legacy_fixed"
     assert record.artifact_paths["forecasts"] == str(result.forecast_path)
+
+
+def test_batch_rejects_calendar_mismatch_with_generation_manifest(
+    data_dir: Path, tmp_path: Path
+) -> None:
+    manifest_path = data_dir / "generation_manifest.json"
+    manifest_path.write_text(json.dumps({"holiday_calendar": "england_wales"}))
+    try:
+        config = BatchForecastConfig(
+            data_dir=data_dir,
+            output_dir=tmp_path / "outputs",
+            horizon_days=7,
+            calibration_folds=2,
+            initial_train_days=180,
+            holiday_calendar="legacy_fixed",
+        )
+        with pytest.raises(ValueError, match="does not match generation provenance"):
+            run_batch_forecast(config)
+    finally:
+        manifest_path.unlink(missing_ok=True)
 
 
 def test_batch_pipeline_missing_data_raises(tmp_path: Path) -> None:
