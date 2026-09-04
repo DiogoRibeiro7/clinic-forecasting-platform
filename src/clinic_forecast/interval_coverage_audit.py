@@ -117,7 +117,10 @@ def run_interval_coverage_audit(
             group_col="clinic_id",
         ).fit(calibration)
         evaluated = intervals.apply(scored)
-        evaluated["is_open"] = evaluated.get("is_open", 1).astype(bool)
+        if "is_open" in evaluated.columns:
+            evaluated["is_open"] = evaluated["is_open"].astype(bool)
+        else:
+            evaluated["is_open"] = True
 
         closed = ~evaluated["is_open"]
         if closed.any():
