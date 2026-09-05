@@ -72,7 +72,8 @@ class BatchForecastResult:
     n_clinics: int
 
 
-def _manifest_calendar(data_dir: Path) -> HolidayCalendarName | None:
+def manifest_calendar(data_dir: Path) -> HolidayCalendarName | None:
+    """Read the recorded holiday calendar from generation provenance if present."""
     manifest_path = data_dir / "generation_manifest.json"
     if not manifest_path.exists():
         return None
@@ -80,6 +81,11 @@ def _manifest_calendar(data_dir: Path) -> HolidayCalendarName | None:
         payload = json.loads(manifest_path.read_text())
     except (json.JSONDecodeError, OSError) as exc:
         raise ValueError(f"Could not read generation manifest: {manifest_path}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(
+            "generation_manifest.json must contain a JSON object: "
+            f"{manifest_path}"
+        )
     value = payload.get("holiday_calendar")
     if value not in {"legacy_fixed", "england_wales"}:
         raise ValueError(
@@ -89,9 +95,12 @@ def _manifest_calendar(data_dir: Path) -> HolidayCalendarName | None:
     return cast(HolidayCalendarName, value)
 
 
-def _resolve_holiday_calendar(config: BatchForecastConfig) -> HolidayCalendarName:
-    recorded = _manifest_calendar(Path(config.data_dir))
-    requested = config.holiday_calendar
+def resolve_holiday_calendar(
+    data_dir: Path,
+    requested: HolidayCalendarName | None = None,
+) -> HolidayCalendarName:
+    """Resolve runtime calendar and reject disagreement with generation provenance."""
+    recorded = manifest_calendar(data_dir)
     if recorded is None:
         return requested or "legacy_fixed"
     if requested is not None and requested != recorded:
@@ -155,13 +164,7 @@ def make_future_frame(
 def _calibrate_intervals(
     usage: pd.DataFrame, config: BatchForecastConfig
 ) -> tuple[ConformalIntervals, pd.DataFrame]:
-    """Fit conformal intervals on deployment-matched rolling residuals.
-
-    Every fold forecasts its complete holdout horizon recursively from the
-    fold origin. Realised targets inside the holdout are never used to build
-    lag features. The resulting residual distribution therefore matches the
-    batch deployment mechanism instead of a teacher-forced one-step process.
-    """
+    """Fit conformal intervals on deployment-matched rolling residuals."""
     splitter = RollingOriginSplitter(
         initial_train_days=config.initial_train_days,
         horizon_days=config.horizon_days,
@@ -204,7 +207,10 @@ def run_batch_forecast(config: BatchForecastConfig) -> BatchForecastResult:
     metadata = pd.read_csv(metadata_path)
     validate_clinic_usage(usage)
     validate_clinic_metadata(metadata)
-    holiday_calendar = _resolve_holiday_calendar(config)
+    holiday_calendar = resolve_holiday_calendar(
+        Path(config.data_dir),
+        config.holiday_calendar,
+    )
     logger.info("Using holiday calendar: %s", holiday_calendar)
 
     logger.info(
@@ -244,12 +250,7 @@ def run_batch_forecast(config: BatchForecastConfig) -> BatchForecastResult:
         rules, _ = load_staffing_config(config.staffing_config)
     else:
         rules = StaffingRules()
-    no_buffer = StaffingRules(
-        **{
-            **rules.__dict__,
-            "buffer_ratio": 0.0,
-        }
-    )
+    no_buffer = StaffingRules(**{**rules.__dict__, "buffer_ratio": 0.0})
     mean_plan = recommend_staffing(forecast, forecast_col="y_pred", rules=no_buffer)
     upper_plan = recommend_staffing(forecast, forecast_col="y_upper", rules=no_buffer)
     staffing = mean_plan[
@@ -328,5 +329,7 @@ __all__ = [
     "BatchForecastConfig",
     "BatchForecastResult",
     "make_future_frame",
+    "manifest_calendar",
+    "resolve_holiday_calendar",
     "run_batch_forecast",
 ]
