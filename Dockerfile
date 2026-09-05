@@ -26,6 +26,8 @@ RUN python scripts/generate_data.py
 
 EXPOSE 8000
 
-# Default: serve the API. Populate outputs first with the batch pipeline, e.g.
-# `docker run --rm clinic-forecast python scripts/run_batch_forecast.py`.
+# Default: serve the API. Populate the primary /v2 artifacts first with the
+# role-specific batch pipeline, e.g.
+# `docker run --rm clinic-forecast python scripts/run_role_specific_batch.py`.
+# The older `run_batch_forecast.py` path remains available for legacy routes.
 CMD ["uvicorn", "clinic_forecast.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
