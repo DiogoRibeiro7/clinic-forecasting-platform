@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -174,3 +175,48 @@ def test_role_specific_batch_smoke(processed_dir: Path, tmp_path: Path) -> None:
     assert (forecasts["attended_lower"] <= forecasts["attended_pred"]).all()
     assert (forecasts["completed_lower"] <= forecasts["completed_pred"]).all()
     assert (forecasts["scheduled_lower"] <= forecasts["scheduled_pred"]).all()
+
+
+def test_role_specific_batch_inherits_generation_calendar(
+    processed_dir: Path, tmp_path: Path
+) -> None:
+    manifest_path = processed_dir / "generation_manifest.json"
+    manifest_path.write_text(json.dumps({"holiday_calendar": "england_wales"}))
+    try:
+        result = run_role_specific_batch(
+            RoleSpecificBatchConfig(
+                data_dir=processed_dir,
+                output_dir=tmp_path / "outputs",
+                horizon_days=7,
+                calibration_folds=2,
+                initial_train_days=180,
+            )
+        )
+        from clinic_forecast.registry import LocalModelRegistry
+
+        registry = LocalModelRegistry(result.forecast_path.parents[2] / "model_registry")
+        record = registry.latest("global_ml_hgb_attended_demand")
+        assert record is not None
+        assert record.params["holiday_calendar"] == "england_wales"
+    finally:
+        manifest_path.unlink(missing_ok=True)
+
+
+def test_role_specific_batch_rejects_calendar_mismatch(
+    processed_dir: Path, tmp_path: Path
+) -> None:
+    manifest_path = processed_dir / "generation_manifest.json"
+    manifest_path.write_text(json.dumps({"holiday_calendar": "england_wales"}))
+    try:
+        config = RoleSpecificBatchConfig(
+            data_dir=processed_dir,
+            output_dir=tmp_path / "outputs",
+            horizon_days=7,
+            calibration_folds=2,
+            initial_train_days=180,
+            holiday_calendar="legacy_fixed",
+        )
+        with pytest.raises(ValueError, match="does not match generation provenance"):
+            run_role_specific_batch(config)
+    finally:
+        manifest_path.unlink(missing_ok=True)
