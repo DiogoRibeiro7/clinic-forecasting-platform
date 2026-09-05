@@ -70,7 +70,7 @@ The frozen NHS result supports aggregate forecasting generalization to observed 
 1. [x] **Regenerate and commit a fresh general multi-model benchmark artifact under deployment-matched recursive evaluation.** Completed with the frozen 8-fold seed-42 core benchmark and immutable result note; retired teacher-forced headline values remain superseded.
 2. [x] **Audit conformal interval coverage by forecast horizon and clinic.** Completed with a frozen 90% prequential audit on held-out open clinic-days, including fold, horizon, weekly-band and clinic diagnostics plus deterministic closed-day serving checks.
 3. [x] **Add holiday calendars for an explicitly selected deployment geography.** Completed prospectively with a source-locked England & Wales bank-holiday calendar, generation provenance and batch inheritance; legacy fixed-date semantics remain the default for frozen synthetic evidence.
-4. [ ] **Characterize temporal regimes behind the 8/19 NHS origins where seasonal naive beat HGB.** This must be labelled exploratory/descriptive and must not rewrite the confirmatory benchmark. Useful diagnostics include calendar period, target level/variance, zero frequency, abrupt level shifts and geography composition of error.
+4. [x] **Characterize temporal regimes behind the 8/19 NHS origins where seasonal naive beat HGB.** Completed as an explicitly exploratory analysis of the canonical confirmatory artifact using a descriptor set frozen before winner-group inspection. Level, dispersion, zero-frequency and realised shift distributions overlapped substantially; calendar clustering was the clearest descriptive signal, and several seasonal-naive wins were broad network-wide episodes rather than isolated geography failures. No switching rule or confirmatory reinterpretation was introduced.
 
 ## Real policy identification — still open
 
@@ -83,8 +83,8 @@ The NHS GPAD forecasting bridge is complete, but the real staffing-policy estima
 
 ## Next integration work
 
-- [ ] Version the serving contract before exposing scheduled, attended and hybrid clinical forecasts through the API.
-- [ ] Decide whether the role-specific hybrid path should replace the legacy completed-visits serving path.
+- [x] Version the serving contract before exposing scheduled, attended and hybrid clinical forecasts through the API. Completed with the explicit `/v2` contract version, version header, discovery endpoint and fail-closed artifact schema validation.
+- [x] Decide whether the role-specific hybrid path should replace the legacy completed-visits serving path. The versioned `/v2` role-specific contract is now the primary serving surface and operational batch default; legacy unversioned routes and commands remain compatibility-only.
 - [ ] Surface hybrid switch-rate monitoring in the operational dashboard.
 - [ ] Add realised post-horizon evaluation of switch precision/recall once appropriate outcomes become available.
 
