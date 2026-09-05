@@ -2,12 +2,16 @@
 
 Writes the four contract CSV files under `data/processed/`:
 clinic_daily_usage.csv, clinic_metadata.csv, marketing_daily.csv and
-staffing_daily.csv. Re-running with the same seed produces identical files.
+staffing_daily.csv. Re-running with the same seed and holiday calendar produces
+identical files. A small generation manifest records the calendar choice so
+batch inference can preserve the same known-calendar semantics prospectively.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
+from dataclasses import asdict
 from pathlib import Path
 
 from clinic_forecast.contracts import (
@@ -17,6 +21,10 @@ from clinic_forecast.contracts import (
     validate_staffing_daily,
 )
 from clinic_forecast.data import SyntheticDataConfig, generate_network_data
+from clinic_forecast.holiday_calendar import (
+    ENGLAND_WALES_SNAPSHOT_DATE,
+    ENGLAND_WALES_SOURCE_URL,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -44,6 +52,15 @@ def parse_args() -> argparse.Namespace:
         default=1.0,
         help="Scale of observation noise (0 keeps only structural variation).",
     )
+    parser.add_argument(
+        "--holiday-calendar",
+        choices=["legacy_fixed", "england_wales"],
+        default="legacy_fixed",
+        help=(
+            "Holiday calendar used by generated calendar features. The default "
+            "preserves frozen benchmark compatibility."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -62,6 +79,7 @@ def main() -> None:
         seasonality_strength=args.seasonality_strength,
         marketing_strength=args.marketing_strength,
         noise_level=args.noise_level,
+        holiday_calendar=args.holiday_calendar,
     )
     network = generate_network_data(config)
     validate_clinic_usage(network.usage)
@@ -74,11 +92,29 @@ def main() -> None:
     network.marketing.to_csv(output_dir / "marketing_daily.csv", index=False)
     network.staffing.to_csv(output_dir / "staffing_daily.csv", index=False)
 
+    manifest = {
+        "schema_version": 1,
+        "generator": "scripts/generate_data.py",
+        "config": asdict(config),
+        "holiday_calendar": config.holiday_calendar,
+        "holiday_source": (
+            {
+                "url": ENGLAND_WALES_SOURCE_URL,
+                "snapshot_date": ENGLAND_WALES_SNAPSHOT_DATE,
+            }
+            if config.holiday_calendar == "england_wales"
+            else {"name": "legacy_fixed"}
+        ),
+    }
+    manifest_path = output_dir / "generation_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+
     print(f"Wrote {len(network.usage):,} usage rows to {output_dir / 'clinic_daily_usage.csv'}")
     print(f"Wrote {len(network.metadata):,} clinics to {output_dir / 'clinic_metadata.csv'}")
     marketing_path = output_dir / "marketing_daily.csv"
     print(f"Wrote {len(network.marketing):,} marketing rows to {marketing_path}")
     print(f"Wrote {len(network.staffing):,} staffing rows to {output_dir / 'staffing_daily.csv'}")
+    print(f"Wrote generation provenance to {manifest_path}")
 
 
 if __name__ == "__main__":

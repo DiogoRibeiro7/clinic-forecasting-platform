@@ -33,6 +33,12 @@ from typing import Final
 import numpy as np
 import pandas as pd
 
+from clinic_forecast.holiday_calendar import (
+    LEGACY_FIXED_HOLIDAYS,
+    HolidayCalendarName,
+    holiday_mask,
+)
+
 SPECIALTIES: Final[tuple[str, ...]] = (
     "primary_care",
     "urgent_care",
@@ -45,15 +51,8 @@ REGIONS: Final[tuple[str, ...]] = ("north", "south", "east", "west")
 
 MARKETING_CHANNELS: Final[tuple[str, ...]] = ("search", "social", "email", "local")
 
-#: Fixed-date public holidays as (month, day). Kept geography-neutral on purpose.
-PUBLIC_HOLIDAYS: Final[tuple[tuple[int, int], ...]] = (
-    (1, 1),
-    (5, 1),
-    (12, 24),
-    (12, 25),
-    (12, 26),
-    (12, 31),
-)
+#: Backwards-compatible alias for the original fixed month/day holiday set.
+PUBLIC_HOLIDAYS: Final[tuple[tuple[int, int], ...]] = tuple(sorted(LEGACY_FIXED_HOLIDAYS))
 
 _CHANNEL_WEIGHTS: Final[dict[str, float]] = {
     "search": 0.40,
@@ -85,6 +84,10 @@ class SyntheticDataConfig:
     noise_level:
         Scales observation noise and the variability of no-show and
         cancellation rates. 0 keeps only structural variation.
+    holiday_calendar:
+        Holiday semantics used for calendar features and clinic closures.
+        ``legacy_fixed`` preserves frozen benchmark compatibility;
+        ``england_wales`` uses the source-locked GOV.UK bank-holiday snapshot.
     """
 
     start_date: str = "2022-01-01"
@@ -94,6 +97,7 @@ class SyntheticDataConfig:
     seasonality_strength: float = 1.0
     marketing_strength: float = 1.0
     noise_level: float = 1.0
+    holiday_calendar: HolidayCalendarName = "legacy_fixed"
 
 
 @dataclass(frozen=True)
@@ -233,8 +237,9 @@ def _calendar_frame(config: SyntheticDataConfig) -> pd.DataFrame:
     calendar["is_monday"] = (calendar["day_of_week"] == 0).astype(int)
     calendar["is_winter"] = calendar["month"].isin([12, 1, 2]).astype(int)
     calendar["is_summer"] = calendar["month"].isin([6, 7, 8]).astype(int)
-    holiday_key = list(zip(calendar["month"], calendar["date"].dt.day, strict=True))
-    calendar["is_holiday"] = [int(key in PUBLIC_HOLIDAYS) for key in holiday_key]
+    calendar["is_holiday"] = holiday_mask(
+        calendar["date"], config.holiday_calendar
+    ).astype(int)
     calendar["yearly_season"] = np.sin(2 * np.pi * calendar["date"].dt.dayofyear / 365.25)
     return calendar
 

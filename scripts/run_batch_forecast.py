@@ -39,6 +39,15 @@ def parse_args() -> argparse.Namespace:
         help="Rolling validation folds used to calibrate intervals.",
     )
     parser.add_argument(
+        "--holiday-calendar",
+        choices=["legacy_fixed", "england_wales"],
+        default=None,
+        help=(
+            "Optional calendar override. By default batch inference inherits "
+            "generation_manifest.json, or legacy_fixed for older datasets."
+        ),
+    )
+    parser.add_argument(
         "--data-dir",
         type=Path,
         default=root / "data" / "processed",
@@ -72,6 +81,7 @@ def main() -> None:
             coverage=args.coverage,
             calibration_folds=args.calibration_folds,
             staffing_config=args.staffing_config,
+            holiday_calendar=args.holiday_calendar,
         )
     )
     print(

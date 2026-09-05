@@ -53,6 +53,40 @@ def test_same_seed_produces_identical_data() -> None:
     pd.testing.assert_frame_equal(first.staffing, second.staffing)
 
 
+def test_default_calendar_preserves_explicit_legacy_semantics() -> None:
+    default = generate_network_data(
+        SyntheticDataConfig(start_date="2024-03-28", end_date="2024-04-03", n_clinics=3)
+    )
+    explicit = generate_network_data(
+        SyntheticDataConfig(
+            start_date="2024-03-28",
+            end_date="2024-04-03",
+            n_clinics=3,
+            holiday_calendar="legacy_fixed",
+        )
+    )
+    pd.testing.assert_frame_equal(default.usage, explicit.usage)
+    pd.testing.assert_frame_equal(default.staffing, explicit.staffing)
+
+
+def test_england_wales_calendar_marks_movable_bank_holiday() -> None:
+    network = generate_network_data(
+        SyntheticDataConfig(
+            start_date="2024-03-28",
+            end_date="2024-04-03",
+            n_clinics=3,
+            holiday_calendar="england_wales",
+        )
+    )
+    easter_monday = network.usage[network.usage["date"] == pd.Timestamp("2024-04-01")]
+    assert not easter_monday.empty
+    assert (easter_monday["is_holiday"] == 1).all()
+    non_urgent = easter_monday[easter_monday["weekend_open"] == 0]
+    assert not non_urgent.empty
+    assert (non_urgent["is_open"] == 0).all()
+    assert (non_urgent["visits"] == 0).all()
+
+
 def test_different_seed_produces_different_visits(network: SyntheticHealthcareData) -> None:
     other = generate_network_data(
         SyntheticDataConfig(

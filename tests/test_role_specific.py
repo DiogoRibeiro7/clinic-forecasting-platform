@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -113,6 +115,13 @@ def processed_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return directory
 
 
+def _copy_processed_dir(source: Path, destination: Path) -> Path:
+    destination.mkdir()
+    for filename in ("clinic_daily_usage.csv", "clinic_metadata.csv"):
+        shutil.copy2(source / filename, destination / filename)
+    return destination
+
+
 def test_role_specific_batch_smoke(processed_dir: Path, tmp_path: Path) -> None:
     result = run_role_specific_batch(
         RoleSpecificBatchConfig(
@@ -174,3 +183,46 @@ def test_role_specific_batch_smoke(processed_dir: Path, tmp_path: Path) -> None:
     assert (forecasts["attended_lower"] <= forecasts["attended_pred"]).all()
     assert (forecasts["completed_lower"] <= forecasts["completed_pred"]).all()
     assert (forecasts["scheduled_lower"] <= forecasts["scheduled_pred"]).all()
+
+
+def test_role_specific_batch_inherits_generation_calendar(
+    processed_dir: Path, tmp_path: Path
+) -> None:
+    isolated_dir = _copy_processed_dir(processed_dir, tmp_path / "england_wales_processed")
+    (isolated_dir / "generation_manifest.json").write_text(
+        json.dumps({"holiday_calendar": "england_wales"})
+    )
+    result = run_role_specific_batch(
+        RoleSpecificBatchConfig(
+            data_dir=isolated_dir,
+            output_dir=tmp_path / "outputs",
+            horizon_days=7,
+            calibration_folds=2,
+            initial_train_days=180,
+        )
+    )
+    from clinic_forecast.registry import LocalModelRegistry
+
+    registry = LocalModelRegistry(result.forecast_path.parents[2] / "model_registry")
+    record = registry.latest("global_ml_hgb_attended_demand")
+    assert record is not None
+    assert record.params["holiday_calendar"] == "england_wales"
+
+
+def test_role_specific_batch_rejects_calendar_mismatch(
+    processed_dir: Path, tmp_path: Path
+) -> None:
+    isolated_dir = _copy_processed_dir(processed_dir, tmp_path / "mismatch_processed")
+    (isolated_dir / "generation_manifest.json").write_text(
+        json.dumps({"holiday_calendar": "england_wales"})
+    )
+    config = RoleSpecificBatchConfig(
+        data_dir=isolated_dir,
+        output_dir=tmp_path / "outputs",
+        horizon_days=7,
+        calibration_folds=2,
+        initial_train_days=180,
+        holiday_calendar="legacy_fixed",
+    )
+    with pytest.raises(ValueError, match="does not match generation provenance"):
+        run_role_specific_batch(config)

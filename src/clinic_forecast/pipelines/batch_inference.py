@@ -16,16 +16,17 @@ The pipeline is local-first: plain CSV in, plain CSV out, no services.
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 import pandas as pd
 
 from clinic_forecast.backtesting import recursive_global_ml_forecast
 from clinic_forecast.contracts import validate_clinic_metadata, validate_clinic_usage
-from clinic_forecast.data import PUBLIC_HOLIDAYS
+from clinic_forecast.holiday_calendar import HolidayCalendarName, holiday_mask
 from clinic_forecast.intervals import ConformalIntervals
 from clinic_forecast.metrics import compute_metrics
 from clinic_forecast.models.global_ml import GlobalMLForecaster
@@ -57,6 +58,7 @@ class BatchForecastConfig:
     calibration_folds: int = 4
     initial_train_days: int = 365
     staffing_config: Path | None = None
+    holiday_calendar: HolidayCalendarName | None = None
 
 
 @dataclass(frozen=True)
@@ -70,8 +72,50 @@ class BatchForecastResult:
     n_clinics: int
 
 
+def manifest_calendar(data_dir: Path) -> HolidayCalendarName | None:
+    """Read the recorded holiday calendar from generation provenance if present."""
+    manifest_path = data_dir / "generation_manifest.json"
+    if not manifest_path.exists():
+        return None
+    try:
+        payload = json.loads(manifest_path.read_text())
+    except (json.JSONDecodeError, OSError) as exc:
+        raise ValueError(f"Could not read generation manifest: {manifest_path}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(
+            "generation_manifest.json must contain a JSON object: "
+            f"{manifest_path}"
+        )
+    value = payload.get("holiday_calendar")
+    if value not in {"legacy_fixed", "england_wales"}:
+        raise ValueError(
+            "generation_manifest.json has an unsupported holiday_calendar: "
+            f"{value!r}"
+        )
+    return cast(HolidayCalendarName, value)
+
+
+def resolve_holiday_calendar(
+    data_dir: Path,
+    requested: HolidayCalendarName | None = None,
+) -> HolidayCalendarName:
+    """Resolve runtime calendar and reject disagreement with generation provenance."""
+    recorded = manifest_calendar(data_dir)
+    if recorded is None:
+        return requested or "legacy_fixed"
+    if requested is not None and requested != recorded:
+        raise ValueError(
+            "Batch holiday calendar does not match generation provenance: "
+            f"requested={requested!r}, recorded={recorded!r}."
+        )
+    return recorded
+
+
 def make_future_frame(
-    usage: pd.DataFrame, metadata: pd.DataFrame, horizon_days: int
+    usage: pd.DataFrame,
+    metadata: pd.DataFrame,
+    horizon_days: int,
+    holiday_calendar: HolidayCalendarName = "legacy_fixed",
 ) -> pd.DataFrame:
     """Build the known-inputs frame for the forecast horizon.
 
@@ -97,12 +141,12 @@ def make_future_frame(
         weekday_plan["campaign_active"] = (weekday_plan["campaign_active"] >= 0.5).astype(int)
 
     frames = []
+    holiday_flags = holiday_mask(future_dates, holiday_calendar).astype(int)
     for _, clinic in metadata.iterrows():
         frame = pd.DataFrame({"date": future_dates})
         frame["clinic_id"] = clinic["clinic_id"]
         frame["day_of_week"] = frame["date"].dt.dayofweek
-        holiday_key = list(zip(frame["date"].dt.month, frame["date"].dt.day, strict=True))
-        frame["is_holiday"] = [int(key in PUBLIC_HOLIDAYS) for key in holiday_key]
+        frame["is_holiday"] = holiday_flags
         weekend_open = bool(clinic.get("weekend_open", 0))
         closed_sunday = (frame["day_of_week"] == 6) & (not weekend_open)
         closed_holiday = (frame["is_holiday"] == 1) & (not weekend_open)
@@ -120,13 +164,7 @@ def make_future_frame(
 def _calibrate_intervals(
     usage: pd.DataFrame, config: BatchForecastConfig
 ) -> tuple[ConformalIntervals, pd.DataFrame]:
-    """Fit conformal intervals on deployment-matched rolling residuals.
-
-    Every fold forecasts its complete holdout horizon recursively from the
-    fold origin. Realised targets inside the holdout are never used to build
-    lag features. The resulting residual distribution therefore matches the
-    batch deployment mechanism instead of a teacher-forced one-step process.
-    """
+    """Fit conformal intervals on deployment-matched rolling residuals."""
     splitter = RollingOriginSplitter(
         initial_train_days=config.initial_train_days,
         horizon_days=config.horizon_days,
@@ -169,6 +207,11 @@ def run_batch_forecast(config: BatchForecastConfig) -> BatchForecastResult:
     metadata = pd.read_csv(metadata_path)
     validate_clinic_usage(usage)
     validate_clinic_metadata(metadata)
+    holiday_calendar = resolve_holiday_calendar(
+        Path(config.data_dir),
+        config.holiday_calendar,
+    )
+    logger.info("Using holiday calendar: %s", holiday_calendar)
 
     logger.info(
         "Calibrating %.0f%% conformal intervals on %s fixed-origin folds",
@@ -181,7 +224,12 @@ def run_batch_forecast(config: BatchForecastConfig) -> BatchForecastResult:
     model = GlobalMLForecaster(estimator=config.estimator).fit(usage)
 
     origin = usage["date"].max()
-    future = make_future_frame(usage, metadata, config.horizon_days)
+    future = make_future_frame(
+        usage,
+        metadata,
+        config.horizon_days,
+        holiday_calendar=holiday_calendar,
+    )
     logger.info(
         "Forecasting %s days for %s clinics from origin %s",
         config.horizon_days,
@@ -202,12 +250,7 @@ def run_batch_forecast(config: BatchForecastConfig) -> BatchForecastResult:
         rules, _ = load_staffing_config(config.staffing_config)
     else:
         rules = StaffingRules()
-    no_buffer = StaffingRules(
-        **{
-            **rules.__dict__,
-            "buffer_ratio": 0.0,
-        }
-    )
+    no_buffer = StaffingRules(**{**rules.__dict__, "buffer_ratio": 0.0})
     mean_plan = recommend_staffing(forecast, forecast_col="y_pred", rules=no_buffer)
     upper_plan = recommend_staffing(forecast, forecast_col="y_upper", rules=no_buffer)
     staffing = mean_plan[
@@ -258,6 +301,7 @@ def run_batch_forecast(config: BatchForecastConfig) -> BatchForecastResult:
             "estimator": config.estimator,
             "calibration_folds": config.calibration_folds,
             "calibration_mode": "fixed_origin_recursive",
+            "holiday_calendar": holiday_calendar,
         },
         artifact_paths={
             "forecasts": str(forecast_path),
@@ -285,5 +329,7 @@ __all__ = [
     "BatchForecastConfig",
     "BatchForecastResult",
     "make_future_frame",
+    "manifest_calendar",
+    "resolve_holiday_calendar",
     "run_batch_forecast",
 ]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -50,6 +51,38 @@ def test_make_future_frame_calendar_and_marketing(data_dir: Path) -> None:
     assert (closed_sunday["is_open"] == 0).all()
 
 
+def test_make_future_frame_england_wales_marks_early_may_bank_holiday() -> None:
+    network = generate_network_data(
+        SyntheticDataConfig(
+            start_date="2024-01-01",
+            end_date="2025-05-04",
+            n_clinics=3,
+        )
+    )
+    future = make_future_frame(
+        network.usage,
+        network.metadata,
+        horizon_days=2,
+        holiday_calendar="england_wales",
+    )
+
+    bank_holiday = future[future["date"] == pd.Timestamp("2025-05-05")]
+    assert not bank_holiday.empty
+    assert (bank_holiday["is_holiday"] == 1).all()
+    non_urgent = bank_holiday[bank_holiday["weekend_open"] == 0]
+    assert not non_urgent.empty
+    assert (non_urgent["is_open"] == 0).all()
+
+    legacy = make_future_frame(
+        network.usage,
+        network.metadata,
+        horizon_days=2,
+        holiday_calendar="legacy_fixed",
+    )
+    legacy_bank_holiday = legacy[legacy["date"] == pd.Timestamp("2025-05-05")]
+    assert (legacy_bank_holiday["is_holiday"] == 0).all()
+
+
 def test_batch_pipeline_smoke(data_dir: Path, tmp_path: Path) -> None:
     result = run_batch_forecast(small_config(data_dir, tmp_path / "outputs"))
 
@@ -87,7 +120,38 @@ def test_batch_pipeline_smoke(data_dir: Path, tmp_path: Path) -> None:
     assert record is not None
     assert record.horizon_days == 7
     assert "calibration_wape" in record.metrics
+    assert record.params["holiday_calendar"] == "legacy_fixed"
     assert record.artifact_paths["forecasts"] == str(result.forecast_path)
+
+
+def test_batch_rejects_calendar_mismatch_with_generation_manifest(
+    data_dir: Path, tmp_path: Path
+) -> None:
+    manifest_path = data_dir / "generation_manifest.json"
+    manifest_path.write_text(json.dumps({"holiday_calendar": "england_wales"}))
+    try:
+        config = BatchForecastConfig(
+            data_dir=data_dir,
+            output_dir=tmp_path / "outputs",
+            horizon_days=7,
+            calibration_folds=2,
+            initial_train_days=180,
+            holiday_calendar="legacy_fixed",
+        )
+        with pytest.raises(ValueError, match="does not match generation provenance"):
+            run_batch_forecast(config)
+    finally:
+        manifest_path.unlink(missing_ok=True)
+
+
+def test_batch_rejects_non_object_generation_manifest(data_dir: Path, tmp_path: Path) -> None:
+    manifest_path = data_dir / "generation_manifest.json"
+    manifest_path.write_text(json.dumps([{"holiday_calendar": "england_wales"}]))
+    try:
+        with pytest.raises(ValueError, match="must contain a JSON object"):
+            run_batch_forecast(small_config(data_dir, tmp_path / "outputs"))
+    finally:
+        manifest_path.unlink(missing_ok=True)
 
 
 def test_batch_pipeline_missing_data_raises(tmp_path: Path) -> None:

@@ -31,6 +31,15 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=root / "configs" / "staffing.yaml",
     )
+    parser.add_argument(
+        "--holiday-calendar",
+        choices=["legacy_fixed", "england_wales"],
+        default=None,
+        help=(
+            "Optional holiday-calendar override. If generation_manifest.json exists, "
+            "the override must match its recorded calendar."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -47,6 +56,7 @@ def main() -> None:
             calibration_folds=args.calibration_folds,
             initial_train_days=args.initial_train_days,
             staffing_config=args.staffing_config,
+            holiday_calendar=args.holiday_calendar,
         )
     )
     print(

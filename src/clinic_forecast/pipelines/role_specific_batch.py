@@ -10,10 +10,11 @@ import pandas as pd
 
 from clinic_forecast.capacity import add_capacity_targets, validate_capacity_targets
 from clinic_forecast.contracts import validate_clinic_metadata, validate_clinic_usage
+from clinic_forecast.holiday_calendar import HolidayCalendarName
 from clinic_forecast.hybrid_monitoring import hybrid_policy_usage_summary
 from clinic_forecast.hybrid_policy import select_hybrid_clinical_forecast
 from clinic_forecast.metrics import compute_metrics
-from clinic_forecast.pipelines.batch_inference import make_future_frame
+from clinic_forecast.pipelines.batch_inference import make_future_frame, resolve_holiday_calendar
 from clinic_forecast.registry import LocalModelRegistry
 from clinic_forecast.role_specific import (
     CLINICAL_TARGET,
@@ -40,6 +41,7 @@ class RoleSpecificBatchConfig:
     calibration_folds: int = 4
     initial_train_days: int = 365
     staffing_config: Path | None = None
+    holiday_calendar: HolidayCalendarName | None = None
 
 
 @dataclass(frozen=True)
@@ -76,6 +78,7 @@ def run_role_specific_batch(config: RoleSpecificBatchConfig) -> RoleSpecificBatc
     metadata = pd.read_csv(metadata_path)
     validate_clinic_usage(usage)
     validate_clinic_metadata(metadata)
+    holiday_calendar = resolve_holiday_calendar(config.data_dir, config.holiday_calendar)
     enriched = add_capacity_targets(usage)
     validate_capacity_targets(enriched)
 
@@ -107,7 +110,12 @@ def run_role_specific_batch(config: RoleSpecificBatchConfig) -> RoleSpecificBatc
         max_folds=config.calibration_folds,
     )
 
-    future = make_future_frame(enriched, metadata, config.horizon_days)
+    future = make_future_frame(
+        enriched,
+        metadata,
+        config.horizon_days,
+        holiday_calendar=holiday_calendar,
+    )
     role_forecasts = forecast_role_targets(
         history=enriched,
         future=future,
@@ -240,6 +248,7 @@ def run_role_specific_batch(config: RoleSpecificBatchConfig) -> RoleSpecificBatc
                 "calibration_folds": config.calibration_folds,
                 "calibration_mode": "fixed_origin_recursive",
                 "clinical_policy": "capacity_upper_conformal_hybrid_v1",
+                "holiday_calendar": holiday_calendar,
             },
             artifact_paths={
                 "forecasts": str(forecast_path),
