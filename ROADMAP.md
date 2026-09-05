@@ -85,7 +85,7 @@ The NHS GPAD forecasting bridge is complete, but the real staffing-policy estima
 
 - [x] Version the serving contract before exposing scheduled, attended and hybrid clinical forecasts through the API. Completed with the explicit `/v2` contract version, version header, discovery endpoint and fail-closed artifact schema validation.
 - [x] Decide whether the role-specific hybrid path should replace the legacy completed-visits serving path. The versioned `/v2` role-specific contract is now the primary serving surface and operational batch default; legacy unversioned routes and commands remain compatibility-only.
-- [ ] Surface hybrid switch-rate monitoring in the operational dashboard.
+- [x] Surface hybrid switch-rate monitoring in the operational dashboard. Completed with a dependency-free HTML renderer and `make dashboard`, using the existing latest role-specific monitoring artifact. The dashboard displays descriptive network and clinic switch-use metrics only; it does not claim realised switch correctness.
 - [ ] Add realised post-horizon evaluation of switch precision/recall once appropriate outcomes become available.
 
 ## Next decision-science work
