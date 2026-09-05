@@ -1,5 +1,5 @@
-.PHONY: install data poc test lint format api batch-forecast notebook-check notebooks \
-	docker-build docker-test docker-batch docker-api
+.PHONY: install data poc test lint format api batch-forecast legacy-batch-forecast \
+	notebook-check notebooks docker-build docker-test docker-batch docker-legacy-batch docker-api
 
 install:
 	poetry install
@@ -10,7 +10,12 @@ data:
 poc:
 	poetry run python scripts/run_poc.py
 
+# Primary operational path: produces the role-specific artifacts served by /v2.
 batch-forecast:
+	poetry run python scripts/run_role_specific_batch.py --horizon 28
+
+# Backward-compatible completed-visits path for legacy unversioned routes.
+legacy-batch-forecast:
 	poetry run python scripts/run_batch_forecast.py --horizon 28
 
 test:
@@ -43,7 +48,13 @@ docker-build:
 docker-test: docker-build
 	docker run --rm $(IMAGE) sh -c "poetry install --only dev --no-interaction && pytest -q"
 
+# Primary Docker batch path: populate role-specific /v2 artifacts.
 docker-batch: docker-build
+	docker run --rm -v "$(CURDIR)/outputs:/app/outputs" $(IMAGE) \
+		python scripts/run_role_specific_batch.py --horizon 28
+
+# Compatibility Docker batch path for legacy unversioned endpoints.
+docker-legacy-batch: docker-build
 	docker run --rm -v "$(CURDIR)/outputs:/app/outputs" $(IMAGE) \
 		python scripts/run_batch_forecast.py --horizon 28
 
