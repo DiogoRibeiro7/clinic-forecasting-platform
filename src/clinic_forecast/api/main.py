@@ -14,8 +14,16 @@ from pathlib import Path
 from typing import Annotated
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 from pydantic import BaseModel, Field
+
+from clinic_forecast.api.contract import (
+    V2_CONTRACT_HEADER,
+    V2_CONTRACT_VERSION,
+    V2_REQUIRED_COLUMNS,
+    V2ArtifactKind,
+    validate_v2_artifact,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -58,13 +66,22 @@ def _load_latest(kind: str) -> pd.DataFrame:
     )
 
 
-def _load_role_latest(kind: str) -> pd.DataFrame:
+def _load_role_latest(kind: V2ArtifactKind) -> pd.DataFrame:
     what = "Hybrid monitoring outputs" if kind == "monitoring" else f"Role-specific {kind} outputs"
-    return _load_csv(
+    frame = _load_csv(
         _output_dir() / "role_specific" / kind / "latest.csv",
         what,
         "Run `poetry run python scripts/run_role_specific_batch.py` first.",
     )
+    try:
+        validate_v2_artifact(frame, kind)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return frame
+
+
+def _set_v2_contract_header(response: Response) -> None:
+    response.headers[V2_CONTRACT_HEADER] = V2_CONTRACT_VERSION
 
 
 def _filter_window(
@@ -112,6 +129,14 @@ class V2HealthResponse(BaseModel):
     forecasts_available: bool
     staffing_available: bool
     hybrid_monitoring_available: bool
+
+
+class V2ContractResponse(BaseModel):
+    """Discoverable schema identity for the role-specific serving contract."""
+
+    contract_version: str
+    version_header: str
+    required_columns: dict[str, list[str]]
 
 
 class ClinicInfo(BaseModel):
@@ -237,14 +262,28 @@ def health() -> HealthResponse:
 
 
 @app.get("/v2/health", response_model=V2HealthResponse)
-def v2_health() -> V2HealthResponse:
+def v2_health(response: Response) -> V2HealthResponse:
     """Return availability of the role-specific hybrid serving artefacts."""
+    _set_v2_contract_header(response)
     root = _output_dir() / "role_specific"
     return V2HealthResponse(
         status="ok",
         forecasts_available=(root / "forecasts" / "latest.csv").exists(),
         staffing_available=(root / "staffing" / "latest.csv").exists(),
         hybrid_monitoring_available=(root / "monitoring" / "latest.csv").exists(),
+    )
+
+
+@app.get("/v2/contract", response_model=V2ContractResponse)
+def v2_contract(response: Response) -> V2ContractResponse:
+    """Return the immutable identity and required fields of serving contract v2."""
+    _set_v2_contract_header(response)
+    return V2ContractResponse(
+        contract_version=V2_CONTRACT_VERSION,
+        version_header=V2_CONTRACT_HEADER,
+        required_columns={
+            kind: sorted(columns) for kind, columns in V2_REQUIRED_COLUMNS.items()
+        },
     )
 
 
@@ -289,14 +328,14 @@ def forecasts(
 
 @app.get("/v2/forecasts", response_model=list[V2ForecastPoint])
 def v2_forecasts(
+    response: Response,
     clinic_id: Annotated[str, Query(description="Clinic identifier, e.g. CLINIC_001")],
     start_date: Annotated[date_type | None, Query()] = None,
     end_date: Annotated[date_type | None, Query()] = None,
 ) -> list[V2ForecastPoint]:
     """Return role-specific forecasts and the frozen hybrid decision."""
-    frame = _filter_window(
-        _load_role_latest("forecasts"), clinic_id, start_date, end_date
-    )
+    _set_v2_contract_header(response)
+    frame = _filter_window(_load_role_latest("forecasts"), clinic_id, start_date, end_date)
     return [
         V2ForecastPoint(
             clinic_id=row["clinic_id"],
@@ -346,14 +385,14 @@ def staffing(
 
 @app.get("/v2/staffing", response_model=list[V2StaffingPoint])
 def v2_staffing(
+    response: Response,
     clinic_id: Annotated[str, Query(description="Clinic identifier, e.g. CLINIC_001")],
     start_date: Annotated[date_type | None, Query()] = None,
     end_date: Annotated[date_type | None, Query()] = None,
 ) -> list[V2StaffingPoint]:
     """Return hybrid staffing plans with the selected clinical target."""
-    frame = _filter_window(
-        _load_role_latest("staffing"), clinic_id, start_date, end_date
-    )
+    _set_v2_contract_header(response)
+    frame = _filter_window(_load_role_latest("staffing"), clinic_id, start_date, end_date)
     return [
         V2StaffingPoint(
             clinic_id=row["clinic_id"],
@@ -373,8 +412,9 @@ def v2_staffing(
 
 
 @app.get("/v2/hybrid-monitoring", response_model=list[HybridMonitoringPoint])
-def v2_hybrid_monitoring() -> list[HybridMonitoringPoint]:
+def v2_hybrid_monitoring(response: Response) -> list[HybridMonitoringPoint]:
     """Return descriptive switch-use monitoring for the latest role-specific run."""
+    _set_v2_contract_header(response)
     frame = _load_role_latest("monitoring")
     return [HybridMonitoringPoint(**row.to_dict()) for _, row in frame.iterrows()]
 

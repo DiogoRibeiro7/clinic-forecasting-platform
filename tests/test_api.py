@@ -8,6 +8,7 @@ import httpx
 import pandas as pd
 import pytest
 
+from clinic_forecast.api.contract import V2_CONTRACT_HEADER, V2_CONTRACT_VERSION
 from clinic_forecast.api.main import app
 
 
@@ -88,7 +89,7 @@ def api_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
                     "capacity_pressure": pressure,
                     "hybrid_target": "attended_demand" if pressure else "completed_visits",
                     "hybrid_clinical_forecast": attended if pressure else completed,
-                    "hybrid_clinical_upper": 105.0 if pressure else (85.0 if pressure else 75.0),
+                    "hybrid_clinical_upper": 105.0 if pressure else 75.0,
                 }
             )
             role_staffing_rows.append(
@@ -162,6 +163,7 @@ def test_health_reports_artefacts(api_env: None) -> None:
     assert body["status"] == "ok"
     assert body["forecasts_available"] is True
     assert body["staffing_available"] is True
+    assert V2_CONTRACT_HEADER not in response.headers
 
 
 def test_v2_health_reports_role_specific_artefacts(api_env: None) -> None:
@@ -174,6 +176,19 @@ def test_v2_health_reports_role_specific_artefacts(api_env: None) -> None:
         "staffing_available": True,
         "hybrid_monitoring_available": True,
     }
+    assert response.headers[V2_CONTRACT_HEADER] == V2_CONTRACT_VERSION
+
+
+def test_v2_contract_is_discoverable(api_env: None) -> None:
+    response = request("GET", "/v2/contract")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["contract_version"] == V2_CONTRACT_VERSION
+    assert body["version_header"] == V2_CONTRACT_HEADER
+    assert set(body["required_columns"]) == {"forecasts", "staffing", "monitoring"}
+    assert "attended_pred" in body["required_columns"]["forecasts"]
+    assert "hybrid_target" in body["required_columns"]["staffing"]
+    assert response.headers[V2_CONTRACT_HEADER] == V2_CONTRACT_VERSION
 
 
 def test_clinics_lists_metadata(api_env: None) -> None:
@@ -206,6 +221,7 @@ def test_forecasts_filters_by_clinic_and_window(api_env: None) -> None:
 def test_v2_forecasts_exposes_auditable_hybrid_decision(api_env: None) -> None:
     response = request("GET", "/v2/forecasts", params={"clinic_id": "CLINIC_001"})
     assert response.status_code == 200
+    assert response.headers[V2_CONTRACT_HEADER] == V2_CONTRACT_VERSION
     body = response.json()
     assert len(body) == 7
     assert {p["hybrid_target"] for p in body} == {"attended_demand", "completed_visits"}
@@ -213,6 +229,25 @@ def test_v2_forecasts_exposes_auditable_hybrid_decision(api_env: None) -> None:
     assert pressured["hybrid_clinical_forecast"] == pressured["attended_pred"]
     unpressured = next(p for p in body if not p["capacity_pressure"])
     assert unpressured["hybrid_clinical_forecast"] == unpressured["completed_pred"]
+
+
+def test_v2_rejects_incompatible_forecast_artifact(
+    api_env: None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir = tmp_path / "bad_outputs"
+    path = output_dir / "role_specific" / "forecasts"
+    path.mkdir(parents=True)
+    pd.DataFrame({"clinic_id": ["CLINIC_001"], "date": ["2026-01-01"]}).to_csv(
+        path / "latest.csv", index=False
+    )
+    monkeypatch.setenv("CLINIC_FORECAST_OUTPUT_DIR", str(output_dir))
+
+    response = request("GET", "/v2/forecasts", params={"clinic_id": "CLINIC_001"})
+    assert response.status_code == 503
+    assert V2_CONTRACT_VERSION in response.json()["detail"]
+    assert "missing columns" in response.json()["detail"]
 
 
 def test_forecasts_unknown_clinic_404(api_env: None) -> None:
@@ -241,6 +276,7 @@ def test_staffing_returns_both_plans(api_env: None) -> None:
 def test_v2_staffing_exposes_selected_target(api_env: None) -> None:
     response = request("GET", "/v2/staffing", params={"clinic_id": "CLINIC_001"})
     assert response.status_code == 200
+    assert response.headers[V2_CONTRACT_HEADER] == V2_CONTRACT_VERSION
     body = response.json()
     assert len(body) == 7
     assert body[0]["hybrid_target"] in {"attended_demand", "completed_visits"}
@@ -250,6 +286,7 @@ def test_v2_staffing_exposes_selected_target(api_env: None) -> None:
 def test_v2_hybrid_monitoring_returns_descriptive_summary(api_env: None) -> None:
     response = request("GET", "/v2/hybrid-monitoring")
     assert response.status_code == 200
+    assert response.headers[V2_CONTRACT_HEADER] == V2_CONTRACT_VERSION
     body = response.json()
     assert len(body) == 2
     assert body[-1]["level"] == "network"
