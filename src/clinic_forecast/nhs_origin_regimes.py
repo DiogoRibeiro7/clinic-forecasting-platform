@@ -69,7 +69,11 @@ def characterize_origins(
 ) -> pd.DataFrame:
     """Calculate the prospectively frozen descriptive regime table."""
     _require_columns(fold_scores, _REQUIRED_FOLD_COLUMNS, "fold_scores")
-    _require_columns(origin_boundaries, {"origin", "train_end", "test_start", "test_end"}, "origin_boundaries")
+    _require_columns(
+        origin_boundaries,
+        {"origin", "train_end", "test_start", "test_end"},
+        "origin_boundaries",
+    )
     _require_columns(panel, _REQUIRED_PANEL_COLUMNS, "panel")
     _require_columns(forecast_rows, _REQUIRED_FORECAST_COLUMNS, "forecast_rows")
 
