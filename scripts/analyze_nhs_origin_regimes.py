@@ -12,7 +12,11 @@ from clinic_forecast.nhs_origin_regimes import characterize_origins, summarize_w
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("artifact_dir", type=Path, help="Extracted canonical confirmatory artifact.")
+    parser.add_argument(
+        "artifact_dir",
+        type=Path,
+        help="Extracted canonical confirmatory artifact.",
+    )
     parser.add_argument("output_dir", type=Path, help="Directory for descriptive CSV outputs.")
     return parser.parse_args()
 
