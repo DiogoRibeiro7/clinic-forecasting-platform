@@ -1,0 +1,84 @@
+name: Scheduled retraining rehearsal
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 5 * * 2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduled-retraining-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  retraining-rehearsal:
+    name: Retrain and verify role-specific models
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Generate deterministic demo data
+        run: >-
+          poetry run python scripts/generate_data.py
+          --start-date 2024-01-01
+          --end-date 2025-12-31
+          --n-clinics 3
+          --seed 42
+          --holiday-calendar legacy_fixed
+
+      - name: Retrain role-specific forecasting stack
+        run: >-
+          poetry run python scripts/run_role_specific_batch.py
+          --horizon 7
+          --estimator hgb
+          --coverage 0.9
+          --calibration-folds 2
+          --initial-train-days 365
+
+      - name: Verify persisted serving and registry outputs
+        run: poetry run python scripts/verify_retraining_run.py --estimator hgb
+
+      - name: Record orchestration provenance
+        if: always()
+        run: |
+          mkdir -p reports/outputs/scheduled_retraining
+          {
+            echo "scope=portfolio_rehearsal_synthetic_data_only"
+            echo "commit_sha=${GITHUB_SHA}"
+            echo "python=$(python --version 2>&1)"
+            echo "poetry=$(poetry --version)"
+            echo "estimator=hgb"
+            echo "horizon_days=7"
+            echo "calibration_folds=2"
+            echo "initial_train_days=365"
+            echo "synthetic_seed=42"
+          } > reports/outputs/scheduled_retraining/provenance.txt
+          poetry run pip freeze > reports/outputs/scheduled_retraining/requirements.txt
+
+      - name: Upload retraining rehearsal bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scheduled-retraining-${{ github.sha }}
+          path: |
+            outputs/role_specific/
+            outputs/model_registry/
+            data/processed/generation_manifest.json
+            reports/outputs/scheduled_retraining/
+          if-no-files-found: error
