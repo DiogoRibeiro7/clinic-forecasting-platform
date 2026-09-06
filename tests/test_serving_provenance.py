@@ -189,7 +189,8 @@ def test_same_origin_rerun_does_not_overwrite_prior_bundle(tmp_path: Path) -> No
         request.output_dir / "role_specific" / "runs" / first.run_id / "manifest.json"
     )
     for model in first_manifest.models.values():
-        verify_file_fingerprint(request.output_dir / model.registry_record.path, model.registry_record)
+        registry_path = request.output_dir / model.registry_record.path
+        verify_file_fingerprint(registry_path, model.registry_record)
 
 
 def test_v2_provenance_exposes_run_id_and_detects_tampering(
