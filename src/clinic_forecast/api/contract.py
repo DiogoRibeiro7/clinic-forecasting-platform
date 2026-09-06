@@ -8,6 +8,7 @@ import pandas as pd
 
 V2_CONTRACT_VERSION: Final = "2.0.0"
 V2_CONTRACT_HEADER: Final = "X-Clinic-Forecast-Contract-Version"
+V2_RUN_ID_HEADER: Final = "X-Clinic-Forecast-Run-Id"
 
 V2ArtifactKind = Literal["forecasts", "staffing", "monitoring"]
 
@@ -87,6 +88,7 @@ __all__ = [
     "V2_FORECAST_REQUIRED_COLUMNS",
     "V2_MONITORING_REQUIRED_COLUMNS",
     "V2_REQUIRED_COLUMNS",
+    "V2_RUN_ID_HEADER",
     "V2_STAFFING_REQUIRED_COLUMNS",
     "validate_v2_artifact",
 ]

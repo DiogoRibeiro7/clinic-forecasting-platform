@@ -9,6 +9,10 @@ from clinic_forecast.pipelines.role_specific_batch import (
     RoleSpecificBatchConfig,
     run_role_specific_batch,
 )
+from clinic_forecast.serving_snapshot import (
+    ServingSnapshotRequest,
+    snapshot_role_specific_serving_run,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -44,19 +48,37 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    """Run the role-specific batch pipeline and print artifact locations."""
+    """Run the batch pipeline, snapshot immutable provenance, and print outputs."""
     args = parse_args()
-    result = run_role_specific_batch(
-        RoleSpecificBatchConfig(
-            data_dir=args.data_dir,
-            output_dir=args.output_dir,
-            horizon_days=args.horizon,
-            estimator=args.estimator,
-            coverage=args.coverage,
-            calibration_folds=args.calibration_folds,
-            initial_train_days=args.initial_train_days,
-            staffing_config=args.staffing_config,
-            holiday_calendar=args.holiday_calendar,
+    root = Path(__file__).resolve().parents[1]
+    config = RoleSpecificBatchConfig(
+        data_dir=args.data_dir,
+        output_dir=args.output_dir,
+        horizon_days=args.horizon,
+        estimator=args.estimator,
+        coverage=args.coverage,
+        calibration_folds=args.calibration_folds,
+        initial_train_days=args.initial_train_days,
+        staffing_config=args.staffing_config,
+        holiday_calendar=args.holiday_calendar,
+    )
+    result = run_role_specific_batch(config)
+    manifest = snapshot_role_specific_serving_run(
+        ServingSnapshotRequest(
+            output_dir=config.output_dir,
+            data_dir=config.data_dir,
+            origin=str(result.origin.date()),
+            estimator=config.estimator,
+            horizon_days=config.horizon_days,
+            coverage=config.coverage,
+            calibration_folds=config.calibration_folds,
+            initial_train_days=config.initial_train_days,
+            staffing_config=config.staffing_config,
+            requested_holiday_calendar=config.holiday_calendar,
+            forecast_path=result.forecast_path,
+            staffing_path=result.staffing_path,
+            monitoring_path=result.monitoring_path,
+            repo_root=root,
         )
     )
     print(
@@ -66,6 +88,11 @@ def main() -> None:
     print(f"Role-specific forecasts: {result.forecast_path}")
     print(f"Role-specific staffing:  {result.staffing_path}")
     print(f"Hybrid monitoring:       {result.monitoring_path}")
+    print(f"Serving run:             {manifest.run_id}")
+    print(
+        "Serving provenance:    "
+        f"{config.output_dir / 'role_specific' / 'runs' / manifest.run_id / 'manifest.json'}"
+    )
 
 
 if __name__ == "__main__":

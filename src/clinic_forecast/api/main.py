@@ -21,8 +21,15 @@ from clinic_forecast.api.contract import (
     V2_CONTRACT_HEADER,
     V2_CONTRACT_VERSION,
     V2_REQUIRED_COLUMNS,
+    V2_RUN_ID_HEADER,
     V2ArtifactKind,
     validate_v2_artifact,
+)
+from clinic_forecast.serving_provenance import (
+    ServingRunManifest,
+    load_serving_manifest,
+    resolve_output_artifact,
+    verify_file_fingerprint,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -66,10 +73,43 @@ def _load_latest(kind: str) -> pd.DataFrame:
     )
 
 
-def _load_role_latest(kind: V2ArtifactKind) -> pd.DataFrame:
+def _load_role_manifest(*, required: bool = False) -> ServingRunManifest | None:
+    path = _output_dir() / "role_specific" / "latest_manifest.json"
+    if not path.is_file():
+        if required:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"Serving provenance not available: {path}. "
+                    "Run `poetry run python scripts/run_role_specific_batch.py` first."
+                ),
+            )
+        return None
+    try:
+        return load_serving_manifest(path)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=f"Invalid serving provenance: {exc}") from exc
+
+
+def _load_role_latest(
+    kind: V2ArtifactKind,
+    manifest: ServingRunManifest | None = None,
+) -> pd.DataFrame:
     what = "Hybrid monitoring outputs" if kind == "monitoring" else f"Role-specific {kind} outputs"
+    if manifest is None:
+        path = _output_dir() / "role_specific" / kind / "latest.csv"
+    else:
+        fingerprint = manifest.artifacts[kind]
+        try:
+            path = resolve_output_artifact(_output_dir(), fingerprint)
+            verify_file_fingerprint(path, fingerprint)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Serving provenance mismatch: {exc}",
+            ) from exc
     frame = _load_csv(
-        _output_dir() / "role_specific" / kind / "latest.csv",
+        path,
         what,
         "Run `poetry run python scripts/run_role_specific_batch.py` first.",
     )
@@ -80,8 +120,10 @@ def _load_role_latest(kind: V2ArtifactKind) -> pd.DataFrame:
     return frame
 
 
-def _set_v2_contract_header(response: Response) -> None:
+def _set_v2_headers(response: Response, manifest: ServingRunManifest | None = None) -> None:
     response.headers[V2_CONTRACT_HEADER] = V2_CONTRACT_VERSION
+    if manifest is not None:
+        response.headers[V2_RUN_ID_HEADER] = manifest.run_id
 
 
 def _filter_window(
@@ -264,7 +306,8 @@ def health() -> HealthResponse:
 @app.get("/v2/health", response_model=V2HealthResponse)
 def v2_health(response: Response) -> V2HealthResponse:
     """Return availability of the role-specific hybrid serving artefacts."""
-    _set_v2_contract_header(response)
+    manifest = _load_role_manifest()
+    _set_v2_headers(response, manifest)
     root = _output_dir() / "role_specific"
     return V2HealthResponse(
         status="ok",
@@ -277,7 +320,7 @@ def v2_health(response: Response) -> V2HealthResponse:
 @app.get("/v2/contract", response_model=V2ContractResponse)
 def v2_contract(response: Response) -> V2ContractResponse:
     """Return the immutable identity and required fields of serving contract v2."""
-    _set_v2_contract_header(response)
+    _set_v2_headers(response)
     return V2ContractResponse(
         contract_version=V2_CONTRACT_VERSION,
         version_header=V2_CONTRACT_HEADER,
@@ -285,6 +328,24 @@ def v2_contract(response: Response) -> V2ContractResponse:
             kind: sorted(columns) for kind, columns in V2_REQUIRED_COLUMNS.items()
         },
     )
+
+
+@app.get("/v2/provenance")
+def v2_provenance(response: Response) -> dict[str, object]:
+    """Return exact model, data, configuration, source, and artifact provenance."""
+    manifest = _load_role_manifest(required=True)
+    assert manifest is not None
+    for fingerprint in manifest.artifacts.values():
+        try:
+            path = resolve_output_artifact(_output_dir(), fingerprint)
+            verify_file_fingerprint(path, fingerprint)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Serving provenance mismatch: {exc}",
+            ) from exc
+    _set_v2_headers(response, manifest)
+    return manifest.to_dict()
 
 
 @app.get("/clinics", response_model=list[ClinicInfo])
@@ -334,8 +395,11 @@ def v2_forecasts(
     end_date: Annotated[date_type | None, Query()] = None,
 ) -> list[V2ForecastPoint]:
     """Return role-specific forecasts and the frozen hybrid decision."""
-    _set_v2_contract_header(response)
-    frame = _filter_window(_load_role_latest("forecasts"), clinic_id, start_date, end_date)
+    manifest = _load_role_manifest()
+    _set_v2_headers(response, manifest)
+    frame = _filter_window(
+        _load_role_latest("forecasts", manifest), clinic_id, start_date, end_date
+    )
     return [
         V2ForecastPoint(
             clinic_id=row["clinic_id"],
@@ -391,8 +455,11 @@ def v2_staffing(
     end_date: Annotated[date_type | None, Query()] = None,
 ) -> list[V2StaffingPoint]:
     """Return hybrid staffing plans with the selected clinical target."""
-    _set_v2_contract_header(response)
-    frame = _filter_window(_load_role_latest("staffing"), clinic_id, start_date, end_date)
+    manifest = _load_role_manifest()
+    _set_v2_headers(response, manifest)
+    frame = _filter_window(
+        _load_role_latest("staffing", manifest), clinic_id, start_date, end_date
+    )
     return [
         V2StaffingPoint(
             clinic_id=row["clinic_id"],
@@ -414,8 +481,9 @@ def v2_staffing(
 @app.get("/v2/hybrid-monitoring", response_model=list[HybridMonitoringPoint])
 def v2_hybrid_monitoring(response: Response) -> list[HybridMonitoringPoint]:
     """Return descriptive switch-use monitoring for the latest role-specific run."""
-    _set_v2_contract_header(response)
-    frame = _load_role_latest("monitoring")
+    manifest = _load_role_manifest()
+    _set_v2_headers(response, manifest)
+    frame = _load_role_latest("monitoring", manifest)
     return [HybridMonitoringPoint(**row.to_dict()) for _, row in frame.iterrows()]
 
 
