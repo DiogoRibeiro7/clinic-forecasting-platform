@@ -91,7 +91,7 @@ def _write_source_artifacts(root: Path, horizon: int = 2) -> tuple[Path, Path, P
 
 
 def _write_inputs(data_dir: Path) -> None:
-    data_dir.mkdir(parents=True)
+    data_dir.mkdir(parents=True, exist_ok=True)
     pd.DataFrame({"clinic_id": ["A"], "date": ["2025-12-31"], "visits": [80]}).to_csv(
         data_dir / "clinic_daily_usage.csv", index=False
     )
@@ -164,17 +164,32 @@ def test_snapshot_creates_immutable_traceable_run(tmp_path: Path) -> None:
         assert manifest.run_id in record.artifact_paths["forecasts"]
 
 
+def test_snapshot_rejects_already_bound_registry_version(tmp_path: Path) -> None:
+    request = _snapshot_request(tmp_path)
+    snapshot_role_specific_serving_run(request)
+
+    with pytest.raises(ValueError, match="already bound"):
+        snapshot_role_specific_serving_run(request)
+
+
 def test_same_origin_rerun_does_not_overwrite_prior_bundle(tmp_path: Path) -> None:
     request = _snapshot_request(tmp_path)
     first = snapshot_role_specific_serving_run(request)
     first_forecast = request.output_dir / first.artifacts["forecasts"].path
     first_bytes = first_forecast.read_bytes()
 
+    # A real rerun trains/registers fresh versions before creating its serving snapshot.
+    _write_registry(request.output_dir)
     second = snapshot_role_specific_serving_run(request)
 
     assert first.run_id != second.run_id
     assert first_forecast.read_bytes() == first_bytes
     assert (request.output_dir / second.artifacts["forecasts"].path).is_file()
+    first_manifest = load_serving_manifest(
+        request.output_dir / "role_specific" / "runs" / first.run_id / "manifest.json"
+    )
+    for model in first_manifest.models.values():
+        verify_file_fingerprint(request.output_dir / model.registry_record.path, model.registry_record)
 
 
 def test_v2_provenance_exposes_run_id_and_detects_tampering(
