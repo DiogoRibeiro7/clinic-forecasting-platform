@@ -83,8 +83,8 @@ def render_hybrid_monitoring_dashboard(frame: pd.DataFrame) -> str:
 <body>
   <h1>Hybrid policy monitoring</h1>
   <p class="note">
-    Descriptive latest-run monitoring only. These rates are not realised switch
-    precision or recall.
+    Descriptive latest-run monitoring only.
+    These rates are not realised switch precision or recall.
   </p>
   <section class="cards">
     <div class="card">
