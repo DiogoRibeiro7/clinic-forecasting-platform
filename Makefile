@@ -1,4 +1,4 @@
-.PHONY: install data poc test lint format api batch-forecast legacy-batch-forecast \
+.PHONY: install data poc test lint format api batch-forecast legacy-batch-forecast dashboard \
 	notebook-check notebooks docker-build docker-test docker-batch docker-legacy-batch docker-api
 
 install:
@@ -17,6 +17,10 @@ batch-forecast:
 # Backward-compatible completed-visits path for legacy unversioned routes.
 legacy-batch-forecast:
 	poetry run python scripts/run_batch_forecast.py --horizon 28
+
+# Render the latest role-specific hybrid monitoring artifact as standalone HTML.
+dashboard:
+	poetry run python scripts/render_hybrid_dashboard.py
 
 test:
 	poetry run pytest
