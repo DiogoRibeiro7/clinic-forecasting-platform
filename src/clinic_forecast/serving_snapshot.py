@@ -16,6 +16,7 @@ from pathlib import Path
 from clinic_forecast.registry import LocalModelRegistry, ModelRecord
 from clinic_forecast.role_specific import CLINICAL_TARGET, COMPLETED_TARGET, FRONTDESK_TARGET
 from clinic_forecast.serving_provenance import (
+    FileFingerprint,
     ModelVersionProvenance,
     SERVING_PROVENANCE_SCHEMA_VERSION,
     ServingRunManifest,
@@ -82,6 +83,12 @@ def _load_records(request: ServingSnapshotRequest) -> dict[str, ModelRecord]:
         record = registry.latest(name)
         if record is None:
             raise ValueError(f"Cannot snapshot serving run: registry model {name!r} is missing.")
+        if record.params.get("serving_run_id") is not None:
+            raise ValueError(
+                f"Cannot snapshot serving run: registry model {name!r} version "
+                f"{record.version} is already bound to serving run "
+                f"{record.params['serving_run_id']!r}."
+            )
         if record.train_end != request.origin:
             raise ValueError(
                 f"Cannot snapshot serving run: {name!r} has train_end={record.train_end!r}, "
@@ -170,8 +177,8 @@ def _update_registry_records(
     return record_paths
 
 
-def _input_fingerprints(request: ServingSnapshotRequest) -> dict[str, object]:
-    fingerprints: dict[str, object] = {}
+def _input_fingerprints(request: ServingSnapshotRequest) -> dict[str, FileFingerprint]:
+    fingerprints: dict[str, FileFingerprint] = {}
     for filename in ("clinic_daily_usage.csv", "clinic_metadata.csv"):
         path = request.data_dir / filename
         fingerprints[filename] = fingerprint_file(path, display_path=filename)
@@ -246,7 +253,7 @@ def snapshot_role_specific_serving_run(
         origin=request.origin,
         config_sha256=config_sha256,
         config=config,
-        inputs=_input_fingerprints(request),  # type: ignore[arg-type]
+        inputs=_input_fingerprints(request),
         models=models,
         artifacts=artifacts,
     )
