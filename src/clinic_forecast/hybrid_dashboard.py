@@ -6,16 +6,9 @@ from html import escape
 
 import pandas as pd
 
-_REQUIRED_COLUMNS = {
-    "level",
-    "group",
-    "n_open_days",
-    "capacity_pressure_days",
-    "capacity_pressure_rate",
-    "attended_demand_selected_days",
-    "attended_demand_selected_rate",
-    "mean_completed_upper_capacity_ratio",
-}
+from clinic_forecast.api.contract import V2_MONITORING_REQUIRED_COLUMNS
+
+_REQUIRED_COLUMNS = V2_MONITORING_REQUIRED_COLUMNS
 
 
 def _percentage(value: float | int) -> str:
