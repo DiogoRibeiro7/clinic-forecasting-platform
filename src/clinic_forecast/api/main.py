@@ -104,7 +104,10 @@ def _load_role_latest(
             path = resolve_output_artifact(_output_dir(), fingerprint)
             verify_file_fingerprint(path, fingerprint)
         except (OSError, ValueError) as exc:
-            raise HTTPException(status_code=503, detail=f"Serving provenance mismatch: {exc}") from exc
+            raise HTTPException(
+                status_code=503,
+                detail=f"Serving provenance mismatch: {exc}",
+            ) from exc
     frame = _load_csv(
         path,
         what,
@@ -337,7 +340,10 @@ def v2_provenance(response: Response) -> dict[str, object]:
             path = resolve_output_artifact(_output_dir(), fingerprint)
             verify_file_fingerprint(path, fingerprint)
         except (OSError, ValueError) as exc:
-            raise HTTPException(status_code=503, detail=f"Serving provenance mismatch: {exc}") from exc
+            raise HTTPException(
+                status_code=503,
+                detail=f"Serving provenance mismatch: {exc}",
+            ) from exc
     _set_v2_headers(response, manifest)
     return manifest.to_dict()
 
