@@ -12,11 +12,12 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
-from typing import Final, Mapping, cast
+from typing import Final, cast
 from uuid import uuid4
 
 SERVING_PROVENANCE_SCHEMA_VERSION: Final = 1
