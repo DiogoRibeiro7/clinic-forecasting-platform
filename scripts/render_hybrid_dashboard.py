@@ -35,7 +35,10 @@ def main() -> None:
         )
     frame = pd.read_csv(args.monitoring_csv)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(render_hybrid_monitoring_dashboard(frame))
+    args.output.write_text(
+        render_hybrid_monitoring_dashboard(frame),
+        encoding="utf-8",
+    )
     print(f"Hybrid monitoring dashboard: {args.output}")
 
 
