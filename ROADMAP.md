@@ -99,7 +99,7 @@ The optimizer experiment is closed for the current synthetic setup: it reduced c
 
 ## Operational maturity
 
-- [ ] Add a scheduled/manual integration workflow that installs and executes the heavy optional model stack.
+- [x] Add a scheduled/manual integration workflow that installs and executes the heavy optional model stack. Completed with a weekly/manual Python 3.11 workflow that installs Poetry's optional group, runs the optional-wrapper regression tests, verifies all declared optional imports, executes small local StatsForecast/MLForecast/NeuralForecast forecasts, avoids hosted inference and pretrained-weight downloads, and uploads exact environment provenance.
 - [ ] Add scheduled retraining orchestration rather than only retraining signals.
 - [ ] Version persisted model artifacts and serving metadata so a forecast response can be traced to exact model/data/config provenance.
 - [ ] Add an explicit production-readiness checklist separating portfolio/demo capabilities from claims that require a governed clinical deployment environment.

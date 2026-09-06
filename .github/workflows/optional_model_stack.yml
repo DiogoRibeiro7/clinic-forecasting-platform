@@ -1,0 +1,63 @@
+name: Optional model stack
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: optional-model-stack-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  optional-model-smoke:
+    name: Install and exercise optional models
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: poetry
+
+      - name: Install core and optional dependencies
+        run: poetry install --no-interaction --with optional
+
+      - name: Run optional wrapper regression tests
+        run: >-
+          poetry run pytest
+          tests/test_optional_models.py
+          tests/test_model_zoo.py
+          tests/test_global_ml.py
+
+      - name: Exercise installed optional model stack
+        run: poetry run python scripts/smoke_optional_model_stack.py
+
+      - name: Record environment provenance
+        if: always()
+        run: |
+          mkdir -p reports/outputs/optional_model_stack
+          {
+            echo "commit_sha=${GITHUB_SHA}"
+            echo "python=$(python --version 2>&1)"
+            echo "poetry=$(poetry --version)"
+          } > reports/outputs/optional_model_stack/provenance.txt
+          poetry run pip freeze > reports/outputs/optional_model_stack/requirements.txt
+
+      - name: Upload optional-stack provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: optional-model-stack-${{ github.sha }}
+          path: reports/outputs/optional_model_stack/
+          if-no-files-found: error
