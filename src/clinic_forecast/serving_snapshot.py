@@ -16,9 +16,9 @@ from pathlib import Path
 from clinic_forecast.registry import LocalModelRegistry, ModelRecord
 from clinic_forecast.role_specific import CLINICAL_TARGET, COMPLETED_TARGET, FRONTDESK_TARGET
 from clinic_forecast.serving_provenance import (
+    SERVING_PROVENANCE_SCHEMA_VERSION,
     FileFingerprint,
     ModelVersionProvenance,
-    SERVING_PROVENANCE_SCHEMA_VERSION,
     ServingRunManifest,
     canonical_config_sha256,
     create_run_id,
