@@ -18,7 +18,7 @@ _REQUIRED_COLUMNS = {
 }
 
 
-def _percentage(value: object) -> str:
+def _percentage(value: float | int) -> str:
     return f"{100.0 * float(value):.1f}%"
 
 
@@ -50,6 +50,10 @@ def render_hybrid_monitoring_dashboard(frame: pd.DataFrame) -> str:
         )
 
     clinic_table = "".join(rows) or '<tr><td colspan="5">No clinic rows available.</td></tr>'
+    open_days = int(network["n_open_days"])
+    pressure_rate = _percentage(network["capacity_pressure_rate"])
+    selected_rate = _percentage(network["attended_demand_selected_rate"])
+
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -57,8 +61,17 @@ def render_hybrid_monitoring_dashboard(frame: pd.DataFrame) -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Hybrid policy monitoring</title>
   <style>
-    body {{ font-family: system-ui, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }}
-    .cards {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }}
+    body {{
+      font-family: system-ui, sans-serif;
+      max-width: 1100px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }}
+    .cards {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1rem;
+    }}
     .card {{ border: 1px solid #ddd; border-radius: 8px; padding: 1rem; }}
     .value {{ font-size: 2rem; font-weight: 700; margin-top: .25rem; }}
     table {{ width: 100%; border-collapse: collapse; margin-top: 2rem; }}
@@ -69,15 +82,35 @@ def render_hybrid_monitoring_dashboard(frame: pd.DataFrame) -> str:
 </head>
 <body>
   <h1>Hybrid policy monitoring</h1>
-  <p class="note">Descriptive latest-run monitoring only. These rates are not realised switch precision or recall.</p>
+  <p class="note">
+    Descriptive latest-run monitoring only. These rates are not realised switch
+    precision or recall.
+  </p>
   <section class="cards">
-    <div class="card"><div>Open clinic-days</div><div class="value">{int(network["n_open_days"])}</div></div>
-    <div class="card"><div>Capacity-pressure rate</div><div class="value">{_percentage(network["capacity_pressure_rate"])}</div></div>
-    <div class="card"><div>Attended-demand selected rate</div><div class="value">{_percentage(network["attended_demand_selected_rate"])}</div></div>
+    <div class="card">
+      <div>Open clinic-days</div>
+      <div class="value">{open_days}</div>
+    </div>
+    <div class="card">
+      <div>Capacity-pressure rate</div>
+      <div class="value">{pressure_rate}</div>
+    </div>
+    <div class="card">
+      <div>Attended-demand selected rate</div>
+      <div class="value">{selected_rate}</div>
+    </div>
   </section>
   <h2>Clinic detail</h2>
   <table>
-    <thead><tr><th>Clinic</th><th>Open days</th><th>Pressure rate</th><th>Attended selected</th><th>Upper/capacity ratio</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Clinic</th>
+        <th>Open days</th>
+        <th>Pressure rate</th>
+        <th>Attended selected</th>
+        <th>Upper/capacity ratio</th>
+      </tr>
+    </thead>
     <tbody>{clinic_table}</tbody>
   </table>
 </body>
