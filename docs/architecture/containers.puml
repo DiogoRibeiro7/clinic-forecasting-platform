@@ -1,0 +1,28 @@
+@startuml ClinicForecastingPlatformContainers
+!include <C4/C4_Container>
+
+title Clinic Forecasting Platform - Container and Runtime View
+
+Person(planner, "Clinic operations analyst / planner", "Runs batch workflows and consumes forecasts, staffing recommendations, monitoring, and provenance.")
+System_Ext(source_data, "Clinic operational data", "Validated clinic usage, metadata, staffing, calendar, and planning inputs.")
+
+System_Boundary(platform, "Clinic Forecasting Platform") {
+    Container(batch, "Batch forecasting process", "Python CLI / package", "Validates data, engineers features, calibrates intervals, forecasts role-specific targets, applies the frozen hybrid rule, creates staffing plans, monitoring summaries, model-registry records, and immutable serving snapshots.")
+    Container(api, "Read-only serving API", "FastAPI / Uvicorn", "Serves legacy and /v2 contracts. It never trains models or recomputes the hybrid switch during requests.")
+    ContainerDb(serving_store, "Serving artifact store", "Filesystem", "Stores mutable convenience aliases plus immutable role-specific run bundles and latest_manifest.json.")
+    ContainerDb(registry, "Local model registry", "JSON / filesystem", "Stores versioned model metadata and artifact bindings for target-specific forecasting runs.")
+    Container(dashboard, "Monitoring dashboard renderer", "Python / HTML", "Renders descriptive hybrid-switch monitoring from committed batch outputs.")
+}
+
+Rel(planner, batch, "Runs generation, retraining, and batch forecast workflows", "CLI / Make")
+Rel(planner, api, "Reads forecasts, staffing, monitoring, contract metadata, and provenance", "HTTPS / JSON")
+Rel(planner, dashboard, "Reviews descriptive hybrid monitoring", "HTML")
+Rel(batch, source_data, "Reads validated source tables and configuration", "CSV / YAML")
+Rel(batch, registry, "Registers model versions and rewrites artifact bindings to immutable run paths", "filesystem")
+Rel(batch, serving_store, "Writes latest aliases, immutable run artifacts, fingerprints, and manifest", "filesystem")
+Rel(api, serving_store, "Loads manifest-selected artifacts and verifies path, size, and SHA-256 before serving", "filesystem")
+Rel(api, source_data, "Reads clinic metadata for request validation", "CSV")
+Rel(dashboard, serving_store, "Reads hybrid monitoring output", "CSV")
+
+SHOW_LEGEND()
+@enduml

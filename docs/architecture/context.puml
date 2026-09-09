@@ -1,0 +1,17 @@
+@startuml ClinicForecastingPlatformContext
+!include <C4/C4_Context>
+
+LAYOUT_LEFT_RIGHT()
+title Clinic Forecasting Platform - System Context
+
+Person(planner, "Clinic operations analyst / planner", "Reviews demand forecasts, staffing recommendations, monitoring, and provenance.")
+System_Ext(source_data, "Clinic operational data", "Governed clinic usage, metadata, staffing, calendar, and planning inputs. Synthetic data are used in the repository demo.")
+System(clinic_platform, "Clinic Forecasting Platform", "Batch forecasting and staffing-decision platform with uncertainty, hybrid target selection, monitoring, provenance, and read-only serving.")
+System_Ext(optional_models, "Optional model providers / runtimes", "Optional local or remote model families such as TimeGPT or foundation-model runtimes; not required by the core path.")
+
+Rel(planner, clinic_platform, "Runs batch workflows and consumes /v2 forecasts, staffing, monitoring, and provenance", "CLI / HTTPS")
+Rel(clinic_platform, source_data, "Reads validated operational inputs", "CSV / file-backed inputs")
+Rel(clinic_platform, optional_models, "Uses only when an optional model family is explicitly selected", "library / provider API")
+
+SHOW_LEGEND()
+@enduml
