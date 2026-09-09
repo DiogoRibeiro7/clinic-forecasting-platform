@@ -160,26 +160,11 @@ one-fold teacher-forced global-ML WAPE values are retired.
 
 ## Architecture
 
-There are now two explicit serving paths.
+![Clinic Forecasting Platform system context](docs/architecture/rendered/ClinicForecastingPlatformContext.svg)
 
-```text
-                         ┌──────────────── legacy compatibility ────────────────┐
-processed data → models → completed-visits batch → outputs/forecasts, staffing │
-                         └──────────────────────┬───────────────────────────────┘
-                                                │
-                                                ▼
-                                      unversioned FastAPI
+The platform separates **batch generation** from **read-only serving**. The role-specific batch path computes forecasts, conformal uncertainty, the frozen hybrid target selection, staffing recommendations and monitoring, then snapshots an immutable serving run. The `/v2` API reads those persisted artifacts and verifies manifest-selected file identity before serving; it never trains or recomputes the hybrid switch during a request.
 
-                         ┌──────────────── hybrid decision path ────────────────┐
-processed data → three targets → conformal intervals → frozen hybrid switch    │
-                         → role-specific staffing → monitoring artefact          │
-                         └──────────────────────┬───────────────────────────────┘
-                                                │
-                                                ▼
-                                             /v2 API
-```
-
-See [`docs/architecture.md`](docs/architecture.md) for the full data flow.
+See [`docs/architecture.md`](docs/architecture.md) for the C4 Context and Container/runtime views plus the immutable `/v2` serving sequence and provenance contract.
 
 ## Quick start
 
@@ -241,6 +226,8 @@ GET /v2/health
 GET /v2/forecasts
 GET /v2/staffing
 GET /v2/hybrid-monitoring
+GET /v2/contract
+GET /v2/provenance
 ```
 
 `/v2/forecasts` exposes both candidate clinical forecasts and intervals,
@@ -248,9 +235,7 @@ scheduled-demand forecasts, known clinic capacity, `capacity_pressure`,
 `hybrid_target`, and the selected hybrid clinical forecast. This makes the
 staffing decision auditable from the response itself.
 
-The API trains nothing and recomputes no hybrid decision at request time; it
-serves immutable batch artefacts. See
-[`docs/api_v2_contract.md`](docs/api_v2_contract.md).
+The API trains nothing and recomputes no hybrid decision at request time. When a serving manifest exists, it serves manifest-selected immutable batch artefacts and verifies their path, size and SHA-256 identity before returning them. See [`docs/api_v2_contract.md`](docs/api_v2_contract.md) and [`docs/architecture.md`](docs/architecture.md).
 
 ## Main package structure
 
@@ -273,6 +258,8 @@ src/clinic_forecast/
 ├── monitoring.py           drift + quality monitoring
 ├── registry.py             local model registry
 ├── role_specific.py        attended/completed/scheduled target forecasts
+├── serving_provenance.py   immutable serving manifests and fingerprint checks
+├── serving_snapshot.py     immutable run snapshots and model bindings
 ├── models/                 statistical, ML and optional model families
 ├── pipelines/
 │   ├── batch_inference.py      legacy completed-visits batch path
