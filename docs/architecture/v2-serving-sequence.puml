@@ -1,0 +1,68 @@
+@startuml ClinicForecastingPlatformV2ServingSequence
+
+title Clinic Forecasting Platform - Immutable v2 Serving Sequence
+
+autonumber
+
+actor Operator
+participant "Role-specific batch CLI" as BatchCLI
+participant "Role-specific batch pipeline" as Batch
+participant "Local model registry" as Registry
+participant "Serving snapshot" as Snapshot
+database "Immutable serving store" as Store
+actor Client
+participant "FastAPI /v2" as API
+participant "Serving provenance" as Provenance
+
+== Produce a serving run ==
+
+Operator -> BatchCLI: run_role_specific_batch.py
+BatchCLI -> Batch: run_role_specific_batch(config)
+Batch -> Batch: validate data + calibrate intervals
+Batch -> Batch: forecast attended/completed/scheduled targets
+Batch -> Batch: apply frozen hybrid target selection
+Batch -> Batch: derive staffing + monitoring
+Batch -> Store: write latest.csv convenience aliases
+Batch -> Registry: register target-specific model versions
+Registry --> Batch: versioned registry records
+BatchCLI -> Snapshot: snapshot_role_specific_serving_run(...)
+Snapshot -> Store: copy immutable forecasts/staffing/monitoring
+Snapshot -> Store: fingerprint inputs/config/source/artifacts
+Snapshot -> Registry: read exact model-version records
+Snapshot -> Store: write immutable manifest.json
+Snapshot -> Store: update latest_manifest.json
+Snapshot --> BatchCLI: ServingRunManifest(run_id)
+BatchCLI --> Operator: print serving run + manifest path
+
+== Serve a v2 request ==
+
+Client -> API: GET /v2/forecasts | staffing | monitoring | provenance
+API -> Provenance: load latest_manifest.json
+Provenance -> Store: read + validate manifest
+Store --> Provenance: run_id + artifact fingerprints
+Provenance --> API: validated ServingRunManifest
+API -> Provenance: resolve_output_artifact(...)
+Provenance -> Store: resolve path inside configured output root
+Store --> Provenance: immutable artifact path
+API -> Provenance: verify_file_fingerprint(path, expected)
+Provenance -> Store: read size + SHA-256
+Store --> Provenance: actual identity
+
+alt path/size/hash mismatch
+    Provenance --> API: error
+    API --> Client: HTTP 503 fail closed
+else artifact identity matches
+    Provenance --> API: verified
+    API -> Store: read immutable CSV artifact
+    Store --> API: artifact rows
+    API -> API: validate v2 schema + filter request window
+    API --> Client: response + contract-version header + run-id header
+end
+
+note over API,Store
+The API is read-only. It does not train models,
+recompute the hybrid switch, or select a new model
+inside request handling.
+end note
+
+@enduml
