@@ -117,6 +117,19 @@ signal, **not** a perfect censoring classifier.
 - **Plan-vs-actual marketing:** if executed spend diverges from the assumed plan,
   the marketing-driven part of the forecast is wrong.
 
+## Production-readiness boundary
+
+Production-shaped engineering in this repository is not evidence that the
+system is clinically deployable. The repository-wide readiness review at
+[`docs/production_readiness.md`](../docs/production_readiness.md) separates
+capabilities already implemented in the portfolio from requirements that need
+deployment integration or governed clinical evidence.
+
+In particular, immutable serving, retraining rehearsal, health checks and
+monitoring do not substitute for production access control, service ownership,
+formal promotion/rollback authority, SLOs, incident response, privacy/security
+review, or real operational validation of latent demand and staffing outcomes.
+
 ## Operational risks
 
 See [`docs/operational_risk.md`](../docs/operational_risk.md) for the full risk
