@@ -339,6 +339,20 @@ CI runs:
 - staffing-decision benchmark evidence regression;
 - hybrid-policy benchmark evidence regression.
 
+## Production-readiness boundary
+
+This repository is deliberately production-shaped but is **not** a clinically
+validated production deployment. The explicit readiness review classifies each
+requirement as:
+
+- implemented in this portfolio;
+- requires deployment integration; or
+- requires governed clinical evidence.
+
+See [`docs/production_readiness.md`](docs/production_readiness.md) before
+interpreting CI, immutable serving, retraining rehearsal or monitoring as
+evidence of deployment readiness.
+
 ## Responsible ML documentation
 
 - [`reports/model_card.md`](reports/model_card.md) — intended/out-of-scope use,
