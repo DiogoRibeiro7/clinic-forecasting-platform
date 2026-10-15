@@ -392,6 +392,18 @@ patterns without exposing patient-level data or protected health information.
 Absolute accuracy and cost figures demonstrate methodology; they are not claims
 about a real healthcare network.
 
+## Release metadata
+
+Release preparation is manual and auditable. Before tagging a version, run:
+
+```bash
+make release-check
+```
+
+The check validates Poetry/package/FastAPI/CITATION/changelog version identity
+but never creates a tag or publishes anything. See
+[`CHANGELOG.md`](CHANGELOG.md) and [`docs/releasing.md`](docs/releasing.md).
+
 ## License
 
 Released under the [MIT License](LICENSE). See the model card and operational
