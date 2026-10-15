@@ -11,7 +11,7 @@ The remaining work is therefore split into two categories:
 
 ### 1. Production-readiness boundary
 
-- [ ] **Add an explicit production-readiness checklist separating portfolio/demo capabilities from claims that require a governed clinical deployment environment.**
+- [x] **Add an explicit production-readiness checklist separating portfolio/demo capabilities from claims that require a governed clinical deployment environment.**
 
 The checklist should cover, at minimum:
 
@@ -25,7 +25,12 @@ The checklist should cover, at minimum:
 - human review responsibilities for staffing recommendations;
 - explicit labels for `implemented in this portfolio`, `requires deployment integration`, and `requires governed clinical evidence`.
 
-After the checklist exists, use it to perform a repository-wide readiness review rather than adding more production-shaped features without a stated deployment requirement.
+The checklist and repository-wide review are now committed in
+[`docs/production_readiness.md`](docs/production_readiness.md). It classifies
+requirements as implemented in this portfolio, requiring deployment integration,
+or requiring governed clinical evidence. Future production-shaped work should
+reference a concrete gap in that review rather than implying deployment
+readiness from local code alone.
 
 ## Blocked by operational data
 
