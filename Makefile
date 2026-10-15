@@ -1,5 +1,6 @@
 .PHONY: install data poc test lint format api batch-forecast legacy-batch-forecast dashboard \
-	notebook-check notebooks docker-build docker-test docker-batch docker-legacy-batch docker-api
+	readiness-check notebook-check notebooks docker-build docker-test docker-batch \
+	docker-legacy-batch docker-api
 
 install:
 	poetry install
@@ -21,6 +22,10 @@ legacy-batch-forecast:
 # Render the latest role-specific hybrid monitoring artifact as standalone HTML.
 dashboard:
 	poetry run python scripts/render_hybrid_dashboard.py
+
+# Verify only the local portfolio serving boundary; this is not production certification.
+readiness-check:
+	poetry run python scripts/verify_portfolio_readiness.py --output-dir outputs
 
 test:
 	poetry run pytest
