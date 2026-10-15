@@ -5,21 +5,31 @@ updates:
     directory: /
     schedule:
       interval: weekly
-      day: monday
-    open-pull-requests-limit: 10
-    groups:
-      python-routine:
+    open-pull-requests-limit: 5
+    allow:
+      - dependency-name: "*"
         update-types:
-          - minor
-          - patch
+          - version-update:semver-minor
+          - version-update:semver-patch
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-      day: monday
     open-pull-requests-limit: 5
-    groups:
-      github-actions:
-        patterns:
-          - "*"
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch
