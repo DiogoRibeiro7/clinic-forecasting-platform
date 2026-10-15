@@ -21,4 +21,4 @@ def test_project_package_and_api_versions_match() -> None:
 
 def test_v2_contract_version_is_independent_from_package_version() -> None:
     assert V2_CONTRACT_VERSION == "2.0.0"
-    assert V2_CONTRACT_VERSION != __version__
+    assert __version__ != V2_CONTRACT_VERSION
