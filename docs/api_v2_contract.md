@@ -14,6 +14,10 @@ The hybrid role-specific outputs are served only under `/v2`.
 
 ## Contract and run identity
 
+The application/package version and the serving contract version are separate
+identities. The package is currently `0.3.0`; the frozen `/v2` schema contract
+remains `2.0.0`.
+
 Successful `/v2` responses include `X-Clinic-Forecast-Contract-Version: 2.0.0`.
 
 When a provenance manifest exists, responses that serve role-specific artefacts also include `X-Clinic-Forecast-Run-Id`. That identifier names an immutable bundle under `outputs/role_specific/runs/<run_id>/` containing the forecast, staffing, monitoring and manifest files for one completed batch run.
