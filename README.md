@@ -353,6 +353,17 @@ See [`docs/production_readiness.md`](docs/production_readiness.md) before
 interpreting CI, immutable serving, retraining rehearsal or monitoring as
 evidence of deployment readiness.
 
+After generating a role-specific serving run, verify the locally provable
+portfolio boundary with:
+
+```bash
+make readiness-check
+```
+
+This checks immutable artefact fingerprints, v2 schemas, provenance and exact
+model/run bindings. A green result is deliberately **not** production or
+clinical certification.
+
 ## Responsible ML documentation
 
 - [`reports/model_card.md`](reports/model_card.md) — intended/out-of-scope use,
