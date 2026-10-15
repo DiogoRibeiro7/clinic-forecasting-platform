@@ -57,6 +57,9 @@ Open a GitHub issue with steps to reproduce, the expected vs actual behaviour,
 and your OS / Python version. For modelling questions, include the relevant
 notebook or script and the metrics you are seeing.
 
+For potential security vulnerabilities, do **not** publish exploit details in a
+public issue. Follow [`SECURITY.md`](SECURITY.md) for private reporting guidance.
+
 ## Code of conduct
 
 By participating you agree to uphold the [Code of Conduct](CODE_OF_CONDUCT.md).
