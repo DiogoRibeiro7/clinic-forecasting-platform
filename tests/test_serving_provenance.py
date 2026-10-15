@@ -9,6 +9,7 @@ from fastapi import HTTPException, Response
 
 from clinic_forecast.api.contract import V2_RUN_ID_HEADER
 from clinic_forecast.api.main import v2_provenance
+from clinic_forecast.readiness import verify_portfolio_readiness
 from clinic_forecast.registry import LocalModelRegistry
 from clinic_forecast.role_specific import CLINICAL_TARGET, COMPLETED_TARGET, FRONTDESK_TARGET
 from clinic_forecast.serving_provenance import load_serving_manifest, verify_file_fingerprint
@@ -213,3 +214,40 @@ def test_v2_provenance_exposes_run_id_and_detects_tampering(
         v2_provenance(Response())
     assert exc_info.value.status_code == 503
     assert "provenance mismatch" in str(exc_info.value.detail).lower()
+
+
+def test_portfolio_readiness_verifies_snapshot_contract(tmp_path: Path) -> None:
+    request = _snapshot_request(tmp_path)
+    manifest = snapshot_role_specific_serving_run(request)
+
+    summary = verify_portfolio_readiness(request.output_dir)
+
+    assert summary.status == "portfolio_ready"
+    assert summary.contract_version == "2.0.0"
+    assert summary.run_id == manifest.run_id
+    assert summary.source_revision == "abc123"
+    assert summary.artifact_rows == {
+        "forecasts": 2,
+        "staffing": 2,
+        "monitoring": 1,
+    }
+    assert set(summary.model_versions) == {
+        "attended_demand",
+        "visits",
+        "scheduled_appointments",
+    }
+
+
+def test_portfolio_readiness_fails_closed_on_tampered_artifact(tmp_path: Path) -> None:
+    request = _snapshot_request(tmp_path)
+    manifest = snapshot_role_specific_serving_run(request)
+    forecast_path = request.output_dir / manifest.artifacts["forecasts"].path
+    forecast_path.write_text("tampered\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="mismatch"):
+        verify_portfolio_readiness(request.output_dir)
+
+
+def test_portfolio_readiness_requires_provenance_manifest(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="manifest"):
+        verify_portfolio_readiness(tmp_path / "outputs")
