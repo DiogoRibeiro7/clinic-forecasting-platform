@@ -11,6 +11,9 @@ on:
       - ".github/workflows/nhs_gpad_quality.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   quality-gate:
     name: Acquire and audit frozen NHS GPAD archive

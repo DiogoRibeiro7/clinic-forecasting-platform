@@ -10,6 +10,9 @@ on:
       - ".github/workflows/hybrid_robustness.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   robustness-cell:
     name: Seed ${{ matrix.seed }} / capacity ${{ matrix.capacity }}
