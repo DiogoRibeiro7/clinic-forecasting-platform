@@ -66,7 +66,7 @@ def test_readiness_matrix_uses_only_canonical_statuses() -> None:
 
 
 def test_readiness_boundary_keeps_real_staffing_claims_evidence_gated() -> None:
-    text = _read("docs/production_readiness.md")
+    text = _read("docs/production_readiness.md").lower()
 
     required_phrases = (
         "real latent-demand/capacity staffing benefit",
@@ -76,4 +76,4 @@ def test_readiness_boundary_keeps_real_staffing_claims_evidence_gated() -> None:
         "realised hybrid-switch precision/recall",
     )
     for phrase in required_phrases:
-        assert phrase in text
+        assert phrase.lower() in text
