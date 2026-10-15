@@ -103,6 +103,8 @@ The frozen NHS result supports aggregate forecasting generalisation to observed 
 - [x] Document the immutable serving-provenance contract and pre-provenance compatibility fallback.
 - [x] Centralise project/package/API version metadata while keeping the frozen
   `/v2` serving-contract version independent.
+- [x] Add an auditable manual release contract with changelog, citation metadata,
+  release procedure and metadata consistency checks.
 
 ## Evidence discipline
 
