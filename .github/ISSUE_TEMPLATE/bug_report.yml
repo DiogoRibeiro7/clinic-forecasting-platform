@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a reproducible defect in code, serving, data contracts, or workflows.
+title: "[bug] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not use this form for security vulnerabilities. Follow SECURITY.md instead.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Problem
+      description: What is wrong, and what did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Minimal steps, command, endpoint, or fixture needed to reproduce the issue.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Package version, branch, tag, or commit SHA.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Forecasting / evaluation
+        - Staffing / decision logic
+        - v2 serving / provenance
+        - Data contracts / validation
+        - Monitoring / retraining
+        - CI / packaging / dependencies
+        - Documentation / evidence
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence boundary impact
+      description: Does this affect frozen benchmark evidence, NHS GPAD claims, synthetic staffing evidence, or production-readiness wording? If no, say "none".
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I have not included patient-level, confidential healthcare, or secret material.
+          required: true
+        - label: This is not a security disclosure; security issues should follow SECURITY.md.
+          required: true
