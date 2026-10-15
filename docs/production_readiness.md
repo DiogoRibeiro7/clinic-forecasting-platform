@@ -53,7 +53,8 @@ It is **not** evidence for lawful production processing of identifiable or confi
 | SLOs | Availability/latency/freshness SLOs | **Requires deployment integration** | No production traffic or infrastructure exists | SLO definitions, measurement source, alert thresholds and error budget. |
 | Incident response | Technical failures surface loudly | **Implemented in this portfolio** | Contracts and serving provenance fail closed | — |
 | Incident response | On-call ownership and incident-management process | **Requires deployment integration** | No organisational service-management layer exists | On-call rota, severity model, communications, incident log and post-incident review. |
-| Security | Dependency pinning/lockfile and CI checks | **Implemented in this portfolio** | poetry.lock, Dependabot and CI | — |
+| Security | Dependency pinning/lockfile and CI checks | **Implemented in this portfolio** | poetry.lock, Dependabot, safe-dependabot policy workflow and CI | — |
+| Security | Vulnerability reporting policy | **Implemented in this portfolio** | SECURITY.md | — |
 | Security | Vulnerability-management SLA and security review | **Requires deployment integration** | Dependency updates exist, but no production security function is represented | Security owner, vulnerability SLA, scanning policy, threat model and review cadence. |
 | Security | Network boundary, TLS, WAF/rate limiting | **Requires deployment integration** | Local FastAPI/Docker demo only | Managed ingress, TLS termination, rate limiting, network policy and abuse controls. |
 | Auditability | Source revision, config, inputs, models and outputs fingerprinted | **Implemented in this portfolio** | Serving provenance manifest and immutable run snapshots | — |
