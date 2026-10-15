@@ -1,0 +1,59 @@
+name: Feature or research change
+description: Propose a new engineering, modelling, research, or governance change.
+title: "[proposal] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The repository has explicit evidence and production-readiness boundaries. Proposals should explain which boundary they touch and why the work is currently justified.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What decision, operational problem, or scientific question does this change address?
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Proposed scope
+      description: What should change, and what should explicitly remain unchanged?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: evidence-status
+    attributes:
+      label: Evidence status
+      options:
+        - No evidence claim; engineering / maintenance only
+        - Synthetic evidence only
+        - Public NHS GPAD observed-activity evidence
+        - Requires new governed operational evidence
+    validations:
+      required: true
+
+  - type: textarea
+    id: evaluation
+    attributes:
+      label: Evaluation / acceptance contract
+      description: How will success be measured without post-hoc threshold or model selection?
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Boundary checks
+      options:
+        - label: This does not silently retune frozen hybrid-policy or NHS confirmatory evidence.
+          required: true
+        - label: If this affects /v2, I will state whether the serving contract version must change.
+          required: true
+        - label: If this depends on real latent demand, capacity, waiting pressure, or staffing outcomes, I acknowledge governed operational data are required.
+          required: true
+        - label: I have reviewed ROADMAP.md and docs/production_readiness.md.
+          required: true
