@@ -30,6 +30,7 @@ make lint           # ruff + mypy (strict typing on src/)
 make test           # pytest
 make notebook-check # executes notebooks 00, 01 and 06 end to end
 make readiness-check # after a role-specific batch run; verifies local serving provenance
+make release-check   # validates release metadata only; never tags or publishes
 ```
 
 `make format` applies ruff's autofixes if the lint step complains.
