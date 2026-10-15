@@ -6,7 +6,6 @@ authors:
   - family-names: "Ribeiro"
     given-names: "Diogo"
 version: "0.3.0"
-date-released: "2026-10-15"
 repository-code: "https://github.com/DiogoRibeiro7/clinic-forecasting-platform"
 url: "https://github.com/DiogoRibeiro7/clinic-forecasting-platform"
 license: MIT
