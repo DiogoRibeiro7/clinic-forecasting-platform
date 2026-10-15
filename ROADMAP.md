@@ -101,6 +101,8 @@ The frozen NHS result supports aggregate forecasting generalisation to observed 
 - [x] Add weekly/manual scheduled retraining orchestration as a deterministic synthetic portfolio rehearsal reusing the existing role-specific training path.
 - [x] Add immutable serving provenance with `role_specific/runs/<run_id>/`, one-run-per-model-version binding, exact source revision, input/config/output and registry SHA-256 identities, `latest_manifest.json`, `/v2/provenance`, `X-Clinic-Forecast-Run-Id` and fail-closed artefact verification.
 - [x] Document the immutable serving-provenance contract and pre-provenance compatibility fallback.
+- [x] Centralise project/package/API version metadata while keeping the frozen
+  `/v2` serving-contract version independent.
 
 ## Evidence discipline
 
