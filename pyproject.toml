@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "clinic-forecasting-platform"
-version = "0.1.0"
+version = "0.3.0"
 description = "A PoC forecasting platform for clinic usage and staffing optimisation in healthcare networks."
 authors = ["Diogo Ribeiro <hansolo.dj@gmail.com>"]
 license = "MIT"
