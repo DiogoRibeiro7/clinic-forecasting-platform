@@ -12,6 +12,9 @@ on:
       - ".github/workflows/nhs_gpad_calendar_support.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   audit:
     name: Audit frozen GPAD calendar support
