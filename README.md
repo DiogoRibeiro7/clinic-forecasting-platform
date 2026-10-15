@@ -201,6 +201,15 @@ Interactive docs are available at:
 http://127.0.0.1:8000/docs
 ```
 
+## Version identities
+
+The software/package version is currently `0.3.0` and is exposed through
+`clinic_forecast.__version__` and the FastAPI application metadata.
+
+That project version is independent from the frozen role-specific serving schema
+version. The `/v2` contract currently remains `2.0.0`; changing package code
+does not automatically change the serving contract.
+
 ## Serving API
 
 The API deliberately keeps two compatibility surfaces.

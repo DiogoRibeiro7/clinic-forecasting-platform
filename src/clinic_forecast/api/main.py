@@ -17,6 +17,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
+from clinic_forecast import __version__
 from clinic_forecast.api.contract import (
     V2_CONTRACT_HEADER,
     V2_CONTRACT_VERSION,
@@ -36,7 +37,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 app = FastAPI(
     title="Clinic Forecasting Platform",
-    version="0.3.0",
+    version=__version__,
     description="Read-only serving API for batch demand forecasts and staffing plans.",
 )
 
