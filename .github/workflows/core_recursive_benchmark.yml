@@ -40,6 +40,9 @@ on:
       - ".github/workflows/core_recursive_benchmark.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   benchmark:
     name: Run core recursive benchmark
