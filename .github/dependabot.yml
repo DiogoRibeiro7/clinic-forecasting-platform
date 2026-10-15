@@ -22,3 +22,14 @@ updates:
         update-types:
           - version-update:semver-minor
           - version-update:semver-patch
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch
