@@ -1,5 +1,5 @@
 .PHONY: install data poc test lint format api batch-forecast legacy-batch-forecast dashboard \
-	readiness-check notebook-check notebooks docker-build docker-test docker-batch \
+	readiness-check release-check notebook-check notebooks docker-build docker-test docker-batch \
 	docker-legacy-batch docker-api
 
 install:
@@ -26,6 +26,10 @@ dashboard:
 # Verify only the local portfolio serving boundary; this is not production certification.
 readiness-check:
 	poetry run python scripts/verify_portfolio_readiness.py --output-dir outputs
+
+# Validate release metadata only; this target never tags or publishes.
+release-check:
+	poetry run python scripts/verify_release_metadata.py
 
 test:
 	poetry run pytest
