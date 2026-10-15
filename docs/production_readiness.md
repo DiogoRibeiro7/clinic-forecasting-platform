@@ -111,6 +111,38 @@ The following claims remain scientifically blocked:
 
 Public NHS GPAD validates forecasting of observed attended appointment activity. It cannot identify those quantities.
 
+## Executable local portfolio check
+
+The repository includes a narrow executable check for capabilities that can be
+proven locally from persisted artefacts:
+
+```bash
+make readiness-check
+```
+
+or:
+
+```bash
+poetry run python scripts/verify_portfolio_readiness.py --output-dir outputs
+```
+
+The check verifies:
+
+- a valid latest role-specific serving manifest;
+- SHA-256/size identity of immutable forecast, staffing and monitoring artefacts;
+- frozen v2 schema compatibility for all three artefacts;
+- the exact attended-demand, completed-visits and scheduled-appointments model bindings;
+- registry-record fingerprints, serving-run IDs and configuration hashes;
+- the current contract version, source revision, run ID and model versions.
+
+A successful result is labelled `portfolio_ready`. That label means only that
+the repository-controlled serving contract is internally coherent.
+
+It does **not** validate authentication, privacy, lawful basis, secret handling,
+network security, SLOs, incident response, deployment infrastructure, human
+factors, real capacity/latent demand, or clinical/staffing effectiveness. Those
+remain in the deployment-integration and governed-evidence categories above.
+
 ## Promotion boundary
 
 A real deployment should not promote this repository directly.
