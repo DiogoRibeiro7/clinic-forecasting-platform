@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software or its methods, please cite this repository."
+title: "Clinic Forecasting Platform"
+type: software
+authors:
+  - family-names: "Ribeiro"
+    given-names: "Diogo"
+version: "0.3.0"
+date-released: "2026-10-15"
+repository-code: "https://github.com/DiogoRibeiro7/clinic-forecasting-platform"
+url: "https://github.com/DiogoRibeiro7/clinic-forecasting-platform"
+license: MIT
+abstract: >-
+  Portfolio-grade proof of concept for clinic demand forecasting, uncertainty
+  quantification and staffing decision support, with fixed-origin evaluation,
+  synthetic decision-science evidence, NHS GPAD external validity, immutable
+  serving provenance and explicit production-readiness boundaries.
