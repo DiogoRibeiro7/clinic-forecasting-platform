@@ -10,6 +10,9 @@ on:
       - ".github/workflows/horizon_policy_audit.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   horizon-policy-evidence:
     name: Horizon-resolved policy evidence
