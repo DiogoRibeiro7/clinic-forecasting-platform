@@ -7,8 +7,13 @@ from pathlib import Path
 
 import pandas as pd
 
-from clinic_forecast.api.contract import V2_CONTRACT_VERSION, V2ArtifactKind, validate_v2_artifact
+from clinic_forecast.api.contract import (
+    V2_CONTRACT_VERSION,
+    V2ArtifactKind,
+    validate_v2_artifact,
+)
 from clinic_forecast.registry import LocalModelRegistry
+from clinic_forecast.role_specific import CLINICAL_TARGET, COMPLETED_TARGET, FRONTDESK_TARGET
 from clinic_forecast.serving_provenance import (
     ServingRunManifest,
     load_serving_manifest,
@@ -58,15 +63,21 @@ def verify_portfolio_readiness(output_dir: str | Path) -> PortfolioReadinessSumm
     manifest = load_serving_manifest(manifest_path)
 
     artifact_rows: dict[str, int] = {}
-    for kind in ("forecasts", "staffing", "monitoring"):
+    artifact_kinds: tuple[V2ArtifactKind, ...] = (
+        "forecasts",
+        "staffing",
+        "monitoring",
+    )
+    for kind in artifact_kinds:
         frame = _read_validated_artifact(root, manifest, kind)
         artifact_rows[kind] = len(frame)
 
-    if set(manifest.models) != {
-        "attended_demand",
-        "visits",
-        "scheduled_appointments",
-    }:
+    expected_targets = {
+        CLINICAL_TARGET,
+        COMPLETED_TARGET,
+        FRONTDESK_TARGET,
+    }
+    if set(manifest.models) != expected_targets:
         raise ValueError(
             "Serving manifest must bind exactly attended_demand, visits, and "
             "scheduled_appointments models."
@@ -75,6 +86,10 @@ def verify_portfolio_readiness(output_dir: str | Path) -> PortfolioReadinessSumm
     registry = LocalModelRegistry(root / "model_registry")
     model_versions: dict[str, int] = {}
     for target, model in manifest.models.items():
+        if model.target != target:
+            raise ValueError(
+                f"Manifest model target mismatch: {model.target!r} != {target!r}."
+            )
         registry_path = resolve_output_artifact(root, model.registry_record)
         verify_file_fingerprint(registry_path, model.registry_record)
         record = registry.load(model.name, model.version)
