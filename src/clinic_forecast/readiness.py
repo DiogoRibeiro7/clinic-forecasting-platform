@@ -77,16 +77,20 @@ def verify_portfolio_readiness(output_dir: str | Path) -> PortfolioReadinessSumm
     for target, model in manifest.models.items():
         registry_path = resolve_output_artifact(root, model.registry_record)
         verify_file_fingerprint(registry_path, model.registry_record)
-        record = registry.get(model.name, model.version)
-        if record is None:
-            raise ValueError(
-                f"Registry record missing for manifest model {model.name!r} "
-                f"version {model.version}."
-            )
+        record = registry.load(model.name, model.version)
         if record.version != model.version:
             raise ValueError(
                 f"Registry version mismatch for {model.name!r}: "
                 f"{record.version} != {model.version}."
+            )
+        if record.params.get("serving_run_id") != manifest.run_id:
+            raise ValueError(
+                f"Registry model {model.name!r} is not bound to serving run "
+                f"{manifest.run_id!r}."
+            )
+        if record.params.get("serving_config_sha256") != manifest.config_sha256:
+            raise ValueError(
+                f"Registry model {model.name!r} does not match serving configuration."
             )
         model_versions[target] = model.version
 
