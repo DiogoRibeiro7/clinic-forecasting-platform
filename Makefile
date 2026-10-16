@@ -1,5 +1,5 @@
 .PHONY: install data poc test lint format api batch-forecast legacy-batch-forecast dashboard \
-	readiness-check release-check package-check notebook-check notebooks pre-commit-install pre-commit actionlint markdownlint yamllint sbom docs-install docs-build docs-serve docker-build docker-test docker-batch \
+	readiness-check release-check package-check notebook-check notebooks pre-commit-install pre-commit actionlint markdownlint yamllint link-check sbom docs-install docs-build docs-serve docker-build docker-test docker-batch \
 	docker-legacy-batch docker-api
 
 install:
@@ -72,6 +72,10 @@ markdownlint:
 # Validate repository YAML with the same version used in CI.
 yamllint:
 	pipx run --spec "yamllint==1.38.0" yamllint .
+
+# Check internal and external links across Markdown files.
+link-check:
+	docker run --rm -v "$(pwd):/input" lycheeverse/lychee:0.24.2 --no-progress --exclude-mail --accept 200,206,429 "/input/**/*.md"
 
 # Generate a reproducible CycloneDX 1.6 SBOM from pyproject.toml + poetry.lock.
 sbom:
