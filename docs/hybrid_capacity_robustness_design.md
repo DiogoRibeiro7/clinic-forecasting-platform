@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD001 MD003 MD022 MD025 -->
+
 # Frozen hybrid capacity-robustness design
 
 This document freezes a robustness replication of the already-selected capacity-aware hybrid clinical staffing policy before any new stress-test cell is evaluated.
