@@ -101,7 +101,6 @@ Run locally with:
 make markdownlint
 ```
 
-
 ## YAML linting
 
 YAML files are validated with yamllint 1.38.0. The repository configuration
