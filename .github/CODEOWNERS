@@ -1,0 +1,27 @@
+# Critical repository surfaces
+.github/workflows/ @DiogoRibeiro7
+.github/dependabot.yml @DiogoRibeiro7
+.github/CODEOWNERS @DiogoRibeiro7
+
+SECURITY.md @DiogoRibeiro7
+CHANGELOG.md @DiogoRibeiro7
+CITATION.cff @DiogoRibeiro7
+mkdocs.yml @DiogoRibeiro7
+
+docs/api_v2_contract.md @DiogoRibeiro7
+docs/serving_contract_v2.md @DiogoRibeiro7
+docs/serving_promotion.md @DiogoRibeiro7
+docs/production_readiness.md @DiogoRibeiro7
+docs/operational_risk.md @DiogoRibeiro7
+docs/evaluation_strategy.md @DiogoRibeiro7
+docs/hybrid_policy.md @DiogoRibeiro7
+docs/nhs_gpad_panel_policy.md @DiogoRibeiro7
+docs/real_data_external_validity_design.md @DiogoRibeiro7
+docs/releasing.md @DiogoRibeiro7
+
+reports/evidence/ @DiogoRibeiro7
+reports/model_card.md @DiogoRibeiro7
+
+src/clinic_forecast/serving_provenance.py @DiogoRibeiro7
+src/clinic_forecast/serving_snapshot.py @DiogoRibeiro7
+src/clinic_forecast/hybrid_policy.py @DiogoRibeiro7
