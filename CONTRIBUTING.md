@@ -34,6 +34,7 @@ make release-check   # validates release metadata only; never tags or publishes
 make docs-build       # builds the MkDocs documentation site
 make pre-commit       # runs local Ruff + mypy hooks over the repository
 make actionlint        # validates GitHub Actions YAML and expressions
+make markdownlint      # validates Markdown structure
 ```
 
 `make format` applies ruff's autofixes if the lint step complains.
@@ -86,3 +87,16 @@ public issue. Follow [`SECURITY.md`](SECURITY.md) for private reporting guidance
 ## Code of conduct
 
 By participating you agree to uphold the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+
+## Documentation linting
+
+Markdown files are validated with markdownlint-cli2 0.23.3. The configuration
+keeps structural checks enabled while disabling line-length, inline-HTML and
+bare-URL rules to avoid low-value churn in scientific and technical prose.
+
+Run locally with:
+
+```bash
+make markdownlint
+```
