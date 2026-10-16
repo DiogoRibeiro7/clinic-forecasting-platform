@@ -31,9 +31,15 @@ make test           # pytest
 make notebook-check # executes notebooks 00, 01 and 06 end to end
 make readiness-check # after a role-specific batch run; verifies local serving provenance
 make release-check   # validates release metadata only; never tags or publishes
+make docs-build       # builds the MkDocs documentation site
 ```
 
 `make format` applies ruff's autofixes if the lint step complains.
+
+Documentation tooling is intentionally isolated from the Poetry application lock.
+`make docs-build` and `make docs-serve` install MkDocs 1.6.1 in an isolated
+`pipx` environment and inject MkDocs Material 9.7.7 into it, so documentation
+changes do not perturb runtime dependencies.
 
 ## Expectations for changes
 
