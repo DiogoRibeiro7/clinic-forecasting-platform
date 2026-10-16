@@ -113,3 +113,9 @@ Run locally with:
 ```bash
 make yamllint
 ```
+
+## Editor consistency
+
+The repository includes a root `.editorconfig` so supported editors use the same
+UTF-8, LF, final-newline and indentation conventions. Python uses four spaces,
+YAML and JSON use two spaces, and Makefile recipes retain tabs.
