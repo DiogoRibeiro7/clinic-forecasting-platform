@@ -1,5 +1,5 @@
 .PHONY: install data poc test lint format api batch-forecast legacy-batch-forecast dashboard \
-	readiness-check release-check notebook-check notebooks docs-build docs-serve docker-build docker-test docker-batch \
+	readiness-check release-check notebook-check notebooks docs-install docs-build docs-serve docker-build docker-test docker-batch \
 	docker-legacy-batch docker-api
 
 install:
@@ -52,11 +52,15 @@ notebooks:
 	poetry run jupyter lab
 
 # Documentation tooling is isolated from the application dependency lock.
-docs-build:
-	pipx run --spec "mkdocs-material==9.7.7" mkdocs build
+docs-install:
+	pipx install "mkdocs==1.6.1" --force
+	pipx inject mkdocs "mkdocs-material==9.7.7"
 
-docs-serve:
-	pipx run --spec "mkdocs-material==9.7.7" mkdocs serve
+docs-build: docs-install
+	mkdocs build
+
+docs-serve: docs-install
+	mkdocs serve
 
 # --- Docker demo ---
 IMAGE ?= clinic-forecast
