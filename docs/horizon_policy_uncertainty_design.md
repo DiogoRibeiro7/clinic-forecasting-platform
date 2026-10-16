@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD001 MD003 MD022 MD025 -->
+
 # Frozen horizon-resolved policy and uncertainty audit
 
 This document prospectively freezes a horizon-resolved audit of the already-selected capacity-aware hybrid clinical staffing policy. The purpose is to determine whether the policy's cost/service behaviour is stable across forecast horizons rather than only in pooled 28-day summaries.
