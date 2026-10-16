@@ -143,3 +143,12 @@ The repository runs GitHub CodeQL static analysis for Python on pull requests,
 pushes to `main`, a weekly schedule and manual dispatch. CodeQL complements
 dependency scanning; a clean scan is not proof of production or clinical
 security readiness.
+
+
+## Software bill of materials
+
+The repository can generate a reproducible CycloneDX 1.6 SBOM from
+`pyproject.toml` and `poetry.lock`. The workflow validates the generated BOM,
+records its SHA-256 digest, and uploads both as CI artifacts when dependency
+metadata changes. This complements Dependabot and CodeQL but does not replace
+vulnerability management or signed release provenance.
