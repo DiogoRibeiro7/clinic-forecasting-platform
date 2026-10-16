@@ -34,7 +34,7 @@ and the task prompts in `AGENTS.md`.
 ## Missing pieces (mapped to files and prompts)
 
 | # | Gap | Where it shows today | Fix lands in | Prompt |
-|---|-----|----------------------|--------------|--------|
+| --- | --- | --- | --- | --- |
 | 1 | No data contracts or schema validation | `scripts/generate_data.py` and `scripts/run_poc.py` write/read CSVs unvalidated | `src/clinic_forecast/contracts.py`, `tests/test_contracts.py` | 2 |
 | 2 | Synthetic data lacks holidays, marketing channels, cancellations, staffing-by-role output, and tunable seasonality/marketing/noise strength | `data.py` (`SyntheticDataConfig` has only dates, clinic count, seed); generator writes 3 CSVs to `data/raw/` instead of the 4 contract files under `data/processed/` | `data.py`, `scripts/generate_data.py`, notebook 01 | 3 |
 | 3 | Validation API is minimal: no step size, max folds, or per-clinic splitting; no fold summaries | `validation.py` (`rolling_origin_windows` generator only) | `RollingOriginSplitter` in `validation.py`, notebooks 03–04 | 5 |
@@ -117,7 +117,7 @@ revisited, ideally after Prompt 3 changes the data files.
 ## Expected portfolio impact
 
 | Improvement | Impact | Why |
-|---|---|---|
+| --- | --- | --- |
 | Data contracts (P2) | High | Signals production data-engineering maturity; rare in portfolio projects |
 | Richer synthetic data (P3) | High | Makes every downstream notebook more convincing |
 | Rolling-origin splitter (P5) | High | Correct time-series validation is a key interview differentiator |
