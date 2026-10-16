@@ -121,7 +121,6 @@ The repository includes a root `.editorconfig` so supported editors use the same
 UTF-8, LF, final-newline and indentation conventions. Python uses four spaces,
 YAML and JSON use two spaces, and Makefile recipes retain tabs.
 
-
 ## Software bill of materials
 
 `make sbom` generates a reproducible CycloneDX 1.6 JSON SBOM from the locked
