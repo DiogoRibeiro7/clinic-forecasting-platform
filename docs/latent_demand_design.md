@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD001 MD003 MD022 MD025 -->
+
 # Latent attended demand and capacity censoring
 
 The original proof of concept used completed visits as the primary forecast target. That is appropriate for describing observed throughput, but it is not the cleanest target for staffing decisions because completed visits are mechanically capped by clinic capacity.
