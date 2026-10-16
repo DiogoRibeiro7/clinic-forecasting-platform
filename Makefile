@@ -1,5 +1,5 @@
 .PHONY: install data poc test lint format api batch-forecast legacy-batch-forecast dashboard \
-	readiness-check release-check notebook-check notebooks pre-commit-install pre-commit actionlint markdownlint yamllint docs-install docs-build docs-serve docker-build docker-test docker-batch \
+	readiness-check release-check notebook-check notebooks pre-commit-install pre-commit actionlint markdownlint yamllint sbom docs-install docs-build docs-serve docker-build docker-test docker-batch \
 	docker-legacy-batch docker-api
 
 install:
@@ -61,6 +61,12 @@ markdownlint:
 # Validate repository YAML with the same version used in CI.
 yamllint:
 	pipx run --spec "yamllint==1.38.0" yamllint .
+
+# Generate a reproducible CycloneDX 1.6 SBOM from pyproject.toml + poetry.lock.
+sbom:
+	mkdir -p reports/sbom
+	pipx run --spec "cyclonedx-bom==7.5.0" cyclonedx-py poetry --spec-version 1.6 --output-format JSON --output-reproducible --validate --output-file reports/sbom/cyclonedx.json .
+	sha256sum reports/sbom/cyclonedx.json > reports/sbom/cyclonedx.json.sha256
 
 api:
 	poetry run uvicorn clinic_forecast.api.main:app --reload
