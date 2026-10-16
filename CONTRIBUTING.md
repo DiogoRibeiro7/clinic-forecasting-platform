@@ -36,6 +36,7 @@ make pre-commit       # runs local Ruff + mypy hooks over the repository
 make actionlint        # validates GitHub Actions YAML and expressions
 make markdownlint      # validates Markdown structure
 make yamllint          # validates YAML syntax and structure
+make sbom              # generates a reproducible CycloneDX SBOM
 ```
 
 `make format` applies ruff's autofixes if the lint step complains.
@@ -119,3 +120,13 @@ make yamllint
 The repository includes a root `.editorconfig` so supported editors use the same
 UTF-8, LF, final-newline and indentation conventions. Python uses four spaces,
 YAML and JSON use two spaces, and Makefile recipes retain tabs.
+
+
+## Software bill of materials
+
+`make sbom` generates a reproducible CycloneDX 1.6 JSON SBOM from the locked
+Poetry dependency graph and records its SHA-256 digest under `reports/sbom/`.
+The CI workflow uploads those files as artifacts when dependency metadata changes.
+
+The SBOM is dependency inventory/provenance metadata. It is not a vulnerability
+scan, signature, SLSA attestation, or production-readiness certificate.
