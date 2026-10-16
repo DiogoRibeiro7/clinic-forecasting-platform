@@ -33,6 +33,7 @@ make readiness-check # after a role-specific batch run; verifies local serving p
 make release-check   # validates release metadata only; never tags or publishes
 make docs-build       # builds the MkDocs documentation site
 make pre-commit       # runs local Ruff + mypy hooks over the repository
+make actionlint        # validates GitHub Actions YAML and expressions
 ```
 
 `make format` applies ruff's autofixes if the lint step complains.
@@ -46,6 +47,10 @@ make pre-commit-install
 The hook reuses the Poetry environment for Ruff and mypy, so there is no second
 lint/type-check configuration to maintain. `make pre-commit` runs the same
 hooks manually across all files.
+
+GitHub Actions workflows are validated separately with actionlint 1.7.12.
+Run `make actionlint` locally when changing files under `.github/workflows/`.
+This requires Go locally but does not modify the Poetry environment.
 
 Documentation tooling is intentionally isolated from the Poetry application lock.
 `make docs-build` and `make docs-serve` install MkDocs 1.6.1 in an isolated
