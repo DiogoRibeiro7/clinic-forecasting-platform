@@ -137,7 +137,6 @@ Those boundaries remain governed by
 [`docs/production_readiness.md`](docs/production_readiness.md) and
 [`reports/model_card.md`](reports/model_card.md).
 
-
 ## Automated code scanning
 
 The repository runs GitHub CodeQL static analysis for Python on pull requests,
