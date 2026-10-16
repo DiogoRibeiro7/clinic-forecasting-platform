@@ -1,0 +1,43 @@
+name: SBOM
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pyproject.toml"
+      - "poetry.lock"
+      - ".github/workflows/sbom.yml"
+  pull_request:
+    paths:
+      - "pyproject.toml"
+      - "poetry.lock"
+      - ".github/workflows/sbom.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    name: Generate CycloneDX SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install CycloneDX
+        run: pipx install "cyclonedx-bom==7.5.0"
+
+      - name: Generate reproducible SBOM
+        run: |
+          mkdir -p reports/sbom
+          cyclonedx-py poetry             --spec-version 1.6             --output-format JSON             --output-reproducible             --validate             --output-file reports/sbom/cyclonedx.json             .
+          sha256sum reports/sbom/cyclonedx.json > reports/sbom/cyclonedx.json.sha256
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: cyclonedx-sbom-${{ github.sha }}
+          path: |
+            reports/sbom/cyclonedx.json
+            reports/sbom/cyclonedx.json.sha256
+          if-no-files-found: error
