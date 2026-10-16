@@ -27,9 +27,8 @@ jobs:
       - name: Check links
         uses: lycheeverse/lychee-action@v2
         with:
-          version: "v0.24.2"
+          lycheeVersion: "v0.24.2"
           args: >-
             --no-progress
-            --exclude-mail
             --accept 200,206,429
             "**/*.md"
