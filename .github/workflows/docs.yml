@@ -31,8 +31,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install MkDocs Material
-        run: pipx install "mkdocs-material==9.7.7"
+      - name: Install MkDocs and Material theme
+        run: |
+          pipx install "mkdocs==1.6.1"
+          pipx inject mkdocs "mkdocs-material==9.7.7"
 
       - name: Build documentation
         run: mkdocs build
