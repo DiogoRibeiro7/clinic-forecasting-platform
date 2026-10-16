@@ -1,5 +1,5 @@
 .PHONY: install data poc test lint format api batch-forecast legacy-batch-forecast dashboard \
-	readiness-check release-check notebook-check notebooks docs-install docs-build docs-serve docker-build docker-test docker-batch \
+	readiness-check release-check notebook-check notebooks pre-commit-install pre-commit docs-install docs-build docs-serve docker-build docker-test docker-batch \
 	docker-legacy-batch docker-api
 
 install:
@@ -41,6 +41,14 @@ lint:
 format:
 	poetry run ruff format src tests scripts
 	poetry run ruff check --fix src tests scripts
+
+# Pre-commit itself is isolated from the Poetry application environment.
+pre-commit-install:
+	pipx install "pre-commit==4.3.0" --force
+	pre-commit install
+
+pre-commit:
+	pipx run --spec "pre-commit==4.3.0" pre-commit run --all-files
 
 api:
 	poetry run uvicorn clinic_forecast.api.main:app --reload
