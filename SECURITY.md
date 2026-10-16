@@ -50,6 +50,7 @@ Examples include:
 - bypass of serving-manifest integrity or fingerprint checks;
 - unsafe deserialisation or code execution;
 - dependency or container vulnerabilities with a credible impact path;
+- code-level security findings identified by static analysis, including CodeQL;
 - privilege or trust-boundary bypass in repository automation;
 - unexpected disclosure of local files through the API;
 - insecure handling of optional external-provider credentials.
@@ -135,3 +136,11 @@ It would not establish:
 Those boundaries remain governed by
 [`docs/production_readiness.md`](docs/production_readiness.md) and
 [`reports/model_card.md`](reports/model_card.md).
+
+
+## Automated code scanning
+
+The repository runs GitHub CodeQL static analysis for Python on pull requests,
+pushes to `main`, a weekly schedule and manual dispatch. CodeQL complements
+dependency scanning; a clean scan is not proof of production or clinical
+security readiness.
