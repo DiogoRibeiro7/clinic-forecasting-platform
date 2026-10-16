@@ -37,8 +37,9 @@ make docs-build       # builds the MkDocs documentation site
 `make format` applies ruff's autofixes if the lint step complains.
 
 Documentation tooling is intentionally isolated from the Poetry application lock.
-`make docs-build` and `make docs-serve` execute MkDocs Material 9.7.7 through
-`pipx`, so documentation changes do not perturb runtime dependencies.
+`make docs-build` and `make docs-serve` install MkDocs 1.6.1 in an isolated
+`pipx` environment and inject MkDocs Material 9.7.7 into it, so documentation
+changes do not perturb runtime dependencies.
 
 ## Expectations for changes
 
