@@ -144,7 +144,6 @@ pushes to `main`, a weekly schedule and manual dispatch. CodeQL complements
 dependency scanning; a clean scan is not proof of production or clinical
 security readiness.
 
-
 ## Software bill of materials
 
 The repository can generate a reproducible CycloneDX 1.6 SBOM from
