@@ -88,7 +88,6 @@ public issue. Follow [`SECURITY.md`](SECURITY.md) for private reporting guidance
 
 By participating you agree to uphold the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-
 ## Documentation linting
 
 Markdown files are validated with markdownlint-cli2 0.23.3. The configuration
