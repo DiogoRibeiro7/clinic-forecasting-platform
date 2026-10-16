@@ -1,0 +1,66 @@
+name: Package build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pyproject.toml"
+      - "poetry.lock"
+      - "src/**"
+      - ".github/workflows/package-build.yml"
+  pull_request:
+    paths:
+      - "pyproject.toml"
+      - "poetry.lock"
+      - "src/**"
+      - ".github/workflows/package-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Build and smoke-test distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: poetry
+
+      - name: Build wheel and sdist
+        run: |
+          poetry build
+          test "$(find dist -maxdepth 1 -name '*.whl' | wc -l)" -eq 1
+          test "$(find dist -maxdepth 1 -name '*.tar.gz' | wc -l)" -eq 1
+
+      - name: Smoke-test built wheel in a clean environment
+        run: |
+          python -m venv .package-smoke
+          .package-smoke/bin/python -m pip install --upgrade pip
+          .package-smoke/bin/python -m pip install dist/*.whl
+          .package-smoke/bin/python - <<'PY'
+          import clinic_forecast
+          from importlib.metadata import version
+
+          package_version = version("clinic-forecasting-platform")
+          assert clinic_forecast.__version__ == package_version, (
+              clinic_forecast.__version__,
+              package_version,
+          )
+          print(f"clinic_forecast {clinic_forecast.__version__} imports from built wheel")
+          PY
+
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
