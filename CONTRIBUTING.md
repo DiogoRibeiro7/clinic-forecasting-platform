@@ -114,7 +114,6 @@ Run locally with:
 make yamllint
 ```
 
-
 ## Editor consistency
 
 The repository includes a root `.editorconfig` so supported editors use the same
