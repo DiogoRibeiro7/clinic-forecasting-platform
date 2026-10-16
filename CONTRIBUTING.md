@@ -35,6 +35,7 @@ make docs-build       # builds the MkDocs documentation site
 make pre-commit       # runs local Ruff + mypy hooks over the repository
 make actionlint        # validates GitHub Actions YAML and expressions
 make markdownlint      # validates Markdown structure
+make yamllint          # validates YAML syntax and structure
 ```
 
 `make format` applies ruff's autofixes if the lint step complains.
@@ -98,4 +99,18 @@ Run locally with:
 
 ```bash
 make markdownlint
+```
+
+
+## YAML linting
+
+YAML files are validated with yamllint 1.38.0. The repository configuration
+disables line-length, document-start and truthy-key checks so GitHub Actions
+syntax such as `on:` is not treated as a style defect, while structural YAML
+validation remains active.
+
+Run locally with:
+
+```bash
+make yamllint
 ```
