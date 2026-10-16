@@ -49,6 +49,7 @@ lint/type-check configuration to maintain. `make pre-commit` runs the same
 hooks manually across all files.
 
 GitHub Actions workflows are validated separately with actionlint 1.7.12.
+Python code is also scanned by GitHub CodeQL in CI for code-level security issues.
 Run `make actionlint` locally when changing files under `.github/workflows/`.
 This requires Go locally but does not modify the Poetry environment.
 
