@@ -132,7 +132,6 @@ The CI workflow uploads those files as artifacts when dependency metadata change
 The SBOM is dependency inventory/provenance metadata. It is not a vulnerability
 scan, signature, SLSA attestation, or production-readiness certificate.
 
-
 ## Link checking
 
 Markdown links are checked with Lychee 0.24.2. CI scans repository Markdown for
