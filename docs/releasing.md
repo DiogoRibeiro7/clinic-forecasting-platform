@@ -45,7 +45,7 @@ commit intended for release:
 - any other workflow explicitly required by the current roadmap.
 
 A release must not weaken the evidence boundaries in
-[`ROADMAP.md`](../ROADMAP.md) or
+[`ROADMAP.md`](https://github.com/DiogoRibeiro7/clinic-forecasting-platform/blob/main/ROADMAP.md) or
 [`production_readiness.md`](production_readiness.md).
 
 ## Version update contract
