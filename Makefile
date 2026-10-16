@@ -75,7 +75,7 @@ yamllint:
 
 # Check internal and external links across Markdown files.
 link-check:
-	docker run --rm -v "$(pwd):/input" lycheeverse/lychee:0.24.2 --no-progress --exclude-mail --accept 200,206,429 "/input/**/*.md"
+	docker run --rm -v "$(pwd):/input" lycheeverse/lychee:0.24.2 --no-progress --accept 200,206,429 "/input/**/*.md"
 
 # Generate a reproducible CycloneDX 1.6 SBOM from pyproject.toml + poetry.lock.
 sbom:
