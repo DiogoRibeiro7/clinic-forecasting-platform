@@ -1,5 +1,5 @@
 .PHONY: install data poc test lint format api batch-forecast legacy-batch-forecast dashboard \
-	readiness-check release-check notebook-check notebooks pre-commit-install pre-commit actionlint markdownlint yamllint sbom docs-install docs-build docs-serve docker-build docker-test docker-batch \
+	readiness-check release-check package-check notebook-check notebooks pre-commit-install pre-commit actionlint markdownlint yamllint sbom docs-install docs-build docs-serve docker-build docker-test docker-batch \
 	docker-legacy-batch docker-api
 
 install:
@@ -30,6 +30,17 @@ readiness-check:
 # Validate release metadata only; this target never tags or publishes.
 release-check:
 	poetry run python scripts/verify_release_metadata.py
+
+# Build wheel/sdist and smoke-test the wheel in a fresh local virtual environment.
+package-check:
+	rm -rf dist .package-smoke
+	poetry build
+	test "$(find dist -maxdepth 1 -name '*.whl' | wc -l)" -eq 1
+	test "$(find dist -maxdepth 1 -name '*.tar.gz' | wc -l)" -eq 1
+	python -m venv .package-smoke
+	.package-smoke/bin/python -m pip install --upgrade pip
+	.package-smoke/bin/python -m pip install dist/*.whl
+	.package-smoke/bin/python -c "import clinic_forecast; from importlib.metadata import version; assert clinic_forecast.__version__ == version('clinic-forecasting-platform')"
 
 test:
 	poetry run pytest

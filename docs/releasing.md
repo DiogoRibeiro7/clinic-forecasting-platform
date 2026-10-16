@@ -28,11 +28,16 @@ make batch-forecast
 make readiness-check
 ```
 
-Verify release metadata:
+Verify release metadata and package artifacts:
 
 ```bash
 make release-check
+make package-check
 ```
+
+`make package-check` builds both wheel and sdist, then installs the wheel in a
+fresh virtual environment and checks that the installed package version matches
+`clinic_forecast.__version__`. It does not publish anything.
 
 Also confirm that the required CI evidence workflows are green on the exact
 commit intended for release:
