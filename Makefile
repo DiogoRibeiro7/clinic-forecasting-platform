@@ -1,5 +1,5 @@
 .PHONY: install data poc test lint format api batch-forecast legacy-batch-forecast dashboard \
-	readiness-check release-check notebook-check notebooks pre-commit-install pre-commit docs-install docs-build docs-serve docker-build docker-test docker-batch \
+	readiness-check release-check notebook-check notebooks pre-commit-install pre-commit actionlint docs-install docs-build docs-serve docker-build docker-test docker-batch \
 	docker-legacy-batch docker-api
 
 install:
@@ -49,6 +49,10 @@ pre-commit-install:
 
 pre-commit:
 	pipx run --spec "pre-commit==4.3.0" pre-commit run --all-files
+
+# Validate GitHub Actions syntax and expressions with the same version used in CI.
+actionlint:
+	go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 
 api:
 	poetry run uvicorn clinic_forecast.api.main:app --reload
