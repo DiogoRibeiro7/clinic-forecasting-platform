@@ -37,6 +37,7 @@ make pre-commit       # runs local Ruff + mypy hooks over the repository
 make actionlint        # validates GitHub Actions YAML and expressions
 make markdownlint      # validates Markdown structure
 make yamllint          # validates YAML syntax and structure
+make link-check        # checks internal and external Markdown links
 make sbom              # generates a reproducible CycloneDX SBOM
 ```
 
@@ -130,3 +131,16 @@ The CI workflow uploads those files as artifacts when dependency metadata change
 
 The SBOM is dependency inventory/provenance metadata. It is not a vulnerability
 scan, signature, SLSA attestation, or production-readiness certificate.
+
+
+## Link checking
+
+Markdown links are checked with Lychee 0.24.2. CI scans repository Markdown for
+broken internal and external links while keeping the application environment
+untouched.
+
+Run locally with Docker:
+
+```bash
+make link-check
+```
