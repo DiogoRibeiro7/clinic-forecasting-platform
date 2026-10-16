@@ -1,5 +1,5 @@
 .PHONY: install data poc test lint format api batch-forecast legacy-batch-forecast dashboard \
-	readiness-check release-check notebook-check notebooks pre-commit-install pre-commit actionlint markdownlint docs-install docs-build docs-serve docker-build docker-test docker-batch \
+	readiness-check release-check notebook-check notebooks pre-commit-install pre-commit actionlint markdownlint yamllint docs-install docs-build docs-serve docker-build docker-test docker-batch \
 	docker-legacy-batch docker-api
 
 install:
@@ -57,6 +57,10 @@ actionlint:
 # Validate Markdown structure with the same version used in CI.
 markdownlint:
 	npx --yes markdownlint-cli2@0.23.3
+
+# Validate repository YAML with the same version used in CI.
+yamllint:
+	pipx run --spec "yamllint==1.38.0" yamllint .
 
 api:
 	poetry run uvicorn clinic_forecast.api.main:app --reload
