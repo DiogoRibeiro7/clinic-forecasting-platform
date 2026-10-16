@@ -31,6 +31,7 @@ make test           # pytest
 make notebook-check # executes notebooks 00, 01 and 06 end to end
 make readiness-check # after a role-specific batch run; verifies local serving provenance
 make release-check   # validates release metadata only; never tags or publishes
+make package-check   # builds wheel/sdist and smoke-tests the built wheel
 make docs-build       # builds the MkDocs documentation site
 make pre-commit       # runs local Ruff + mypy hooks over the repository
 make actionlint        # validates GitHub Actions YAML and expressions
