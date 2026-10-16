@@ -20,7 +20,8 @@ validated clinic data
 
 All included data are synthetic and contain no patient-level information.
 
-> **Reviewing this project?** Start with the committed decision evidence:
+> **Reviewing this project?** Browse the project documentation at
+> https://diogoribeiro7.github.io/clinic-forecasting-platform/ or start with the committed decision evidence:
 > `reports/evidence/capacity_target_benchmark/`,
 > `reports/evidence/staffing_decision_benchmark/`, and
 > `reports/evidence/hybrid_policy_benchmark/`. Then use
@@ -372,6 +373,24 @@ make readiness-check
 This checks immutable artefact fingerprints, v2 schemas, provenance and exact
 model/run bindings. A green result is deliberately **not** production or
 clinical certification.
+
+## Project documentation
+
+The Markdown documentation under `docs/` is published as a MkDocs Material site.
+Build it locally with:
+
+```bash
+make docs-build
+```
+
+For a local live preview:
+
+```bash
+make docs-serve
+```
+
+Documentation publication does not change the project's production-readiness or
+clinical-evidence boundaries.
 
 ## Responsible ML documentation
 
