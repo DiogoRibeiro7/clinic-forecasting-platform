@@ -145,7 +145,6 @@ Run locally with Docker:
 make link-check
 ```
 
-
 ## Container vulnerability scanning
 
 The Docker image is scanned with Trivy 0.76.0. CI reports HIGH and CRITICAL
