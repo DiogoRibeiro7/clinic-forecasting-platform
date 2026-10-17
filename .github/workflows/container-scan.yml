@@ -1,0 +1,54 @@
+name: Container scan
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - "src/**"
+      - ".github/workflows/container-scan.yml"
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - "src/**"
+      - ".github/workflows/container-scan.yml"
+  schedule:
+    - cron: "41 5 * * 4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t clinic-forecast:scan .
+
+      - name: Report HIGH and CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "clinic-forecast:scan"
+          version: "v0.76.0"
+          format: "table"
+          severity: "HIGH,CRITICAL"
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Fail on fixable CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "clinic-forecast:scan"
+          version: "v0.76.0"
+          format: "table"
+          severity: "CRITICAL"
+          ignore-unfixed: true
+          exit-code: "1"
