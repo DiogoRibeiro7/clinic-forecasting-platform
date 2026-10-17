@@ -39,6 +39,7 @@ make markdownlint      # validates Markdown structure
 make yamllint          # validates YAML syntax and structure
 make link-check        # checks internal and external Markdown links
 make sbom              # generates a reproducible CycloneDX SBOM
+make container-scan    # scans the Docker image for fixable CRITICAL CVEs
 ```
 
 `make format` applies ruff's autofixes if the lint step complains.
@@ -142,4 +143,18 @@ Run locally with Docker:
 
 ```bash
 make link-check
+```
+
+
+## Container vulnerability scanning
+
+The Docker image is scanned with Trivy 0.76.0. CI reports HIGH and CRITICAL
+findings and fails only on fixable CRITICAL vulnerabilities, which keeps the
+security gate actionable rather than permanently red because of upstream
+unfixed issues.
+
+Run locally with:
+
+```bash
+make container-scan
 ```
