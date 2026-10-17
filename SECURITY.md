@@ -158,3 +158,10 @@ The repository builds and scans its Docker image with Trivy 0.76.0. CI reports
 HIGH and CRITICAL findings and fails on fixable CRITICAL vulnerabilities. This
 complements CodeQL, Dependabot and the CycloneDX SBOM, but does not establish
 production or clinical security certification.
+
+
+## Third-party license inventory
+
+The repository can generate JSON and Markdown inventories of licenses associated
+with the installed main Python dependency environment. The report is intended for
+transparency and review only; it is not an automated legal-compatibility decision.
