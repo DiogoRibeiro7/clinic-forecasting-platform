@@ -1,5 +1,5 @@
 .PHONY: install data poc test lint format api batch-forecast legacy-batch-forecast dashboard \
-	readiness-check release-check package-check notebook-check notebooks pre-commit-install pre-commit actionlint markdownlint yamllint link-check sbom docs-install docs-build docs-serve docker-build docker-test docker-batch \
+	readiness-check release-check package-check notebook-check notebooks pre-commit-install pre-commit actionlint markdownlint yamllint link-check sbom docs-install docs-build docs-serve docker-build docker-test container-scan docker-batch \
 	docker-legacy-batch docker-api
 
 install:
@@ -112,6 +112,10 @@ docker-build:
 # The demo image is main-only; install dev tools + tests at run time.
 docker-test: docker-build
 	docker run --rm $(IMAGE) sh -c "poetry install --only dev --no-interaction && pytest -q"
+
+# Scan the locally built image and fail on fixable CRITICAL vulnerabilities.
+container-scan: docker-build
+	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.0 image --severity CRITICAL --ignore-unfixed --exit-code 1 $(IMAGE)
 
 # Primary Docker batch path: populate role-specific /v2 artifacts.
 docker-batch: docker-build
