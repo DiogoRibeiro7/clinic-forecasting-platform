@@ -159,7 +159,6 @@ Run locally with:
 make container-scan
 ```
 
-
 ## Dependency license inventory
 
 `make license-report` generates JSON and Markdown inventories of third-party
