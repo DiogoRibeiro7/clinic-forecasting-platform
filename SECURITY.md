@@ -152,7 +152,6 @@ records its SHA-256 digest, and uploads both as CI artifacts when dependency
 metadata changes. This complements Dependabot and CodeQL but does not replace
 vulnerability management or signed release provenance.
 
-
 ## Container vulnerability scanning
 
 The repository builds and scans its Docker image with Trivy 0.76.0. CI reports
