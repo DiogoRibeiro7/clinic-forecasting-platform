@@ -1,5 +1,5 @@
 .PHONY: install data poc test lint format api batch-forecast legacy-batch-forecast dashboard \
-	readiness-check release-check package-check notebook-check notebooks pre-commit-install pre-commit actionlint markdownlint yamllint link-check sbom docs-install docs-build docs-serve docker-build docker-test container-scan docker-batch \
+	readiness-check release-check package-check notebook-check notebooks pre-commit-install pre-commit actionlint markdownlint yamllint link-check sbom license-report docs-install docs-build docs-serve docker-build docker-test container-scan docker-batch \
 	docker-legacy-batch docker-api
 
 install:
@@ -82,6 +82,13 @@ sbom:
 	mkdir -p reports/sbom
 	pipx run --spec "cyclonedx-bom==7.5.0" cyclonedx-py poetry --spec-version 1.6 --output-format JSON --output-reproducible --validate --output-file reports/sbom/cyclonedx.json .
 	sha256sum reports/sbom/cyclonedx.json > reports/sbom/cyclonedx.json.sha256
+
+# Generate dependency-license inventory from the installed main environment.
+license-report:
+	mkdir -p reports/licenses
+	poetry run python -m pip install "pip-licenses==5.5.5"
+	poetry run pip-licenses --format=json --with-urls --with-description --output-file reports/licenses/dependencies.json
+	poetry run pip-licenses --format=markdown --with-urls --with-description --output-file reports/licenses/dependencies.md
 
 api:
 	poetry run uvicorn clinic_forecast.api.main:app --reload
