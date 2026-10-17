@@ -159,7 +159,6 @@ HIGH and CRITICAL findings and fails on fixable CRITICAL vulnerabilities. This
 complements CodeQL, Dependabot and the CycloneDX SBOM, but does not establish
 production or clinical security certification.
 
-
 ## Third-party license inventory
 
 The repository can generate JSON and Markdown inventories of licenses associated
