@@ -20,8 +20,7 @@ validated clinic data
 
 All included data are synthetic and contain no patient-level information.
 
-> **Reviewing this project?** Browse the project documentation at
-> https://diogoribeiro7.github.io/clinic-forecasting-platform/ or start with the committed decision evidence:
+> **Reviewing this project?** Start with the [project documentation](docs/index.md) or the committed decision evidence:
 > `reports/evidence/capacity_target_benchmark/`,
 > `reports/evidence/staffing_decision_benchmark/`, and
 > `reports/evidence/hybrid_policy_benchmark/`. Then use
