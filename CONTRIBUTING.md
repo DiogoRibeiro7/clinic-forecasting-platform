@@ -39,6 +39,7 @@ make markdownlint      # validates Markdown structure
 make yamllint          # validates YAML syntax and structure
 make link-check        # checks internal and external Markdown links
 make sbom              # generates a reproducible CycloneDX SBOM
+make license-report    # generates third-party dependency license inventory
 make container-scan    # scans the Docker image for fixable CRITICAL CVEs
 ```
 
@@ -157,3 +158,13 @@ Run locally with:
 ```bash
 make container-scan
 ```
+
+
+## Dependency license inventory
+
+`make license-report` generates JSON and Markdown inventories of third-party
+licenses for the installed main dependency environment using pip-licenses 5.5.5.
+CI uploads the reports when dependency metadata changes.
+
+This is inventory only. It is not legal advice and does not automatically decide
+whether a dependency license is compatible with every downstream use.
